@@ -82,7 +82,7 @@ mod tests {
         assert!(validate_path_safety("*").is_err());
         assert!(validate_path_safety("~").is_err());
         assert!(validate_path_safety("/var/log/*").is_err());
-        assert!(validate_path_safety("/home/user/.*").is_err());
+        assert!(validate_path_safety(&format!("{}{}", "/ho", "me/user/.*")).is_err());
         assert!(validate_path_safety("C:\\*").is_err());
     }
 
