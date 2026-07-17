@@ -36,6 +36,20 @@ mcp-uutils/
 All commands outputting text respect the `AI_COMMAND_MAX_CHARACTERS` environment variable (default: `8192`).
 - **Smart Boundary**: Output is automatically truncated at the last newline (`\n`) before the limit. If no newline is present within the range, it is truncated exactly at the limit.
 - **Metadata**: Truncated responses are returned with `status: "truncated"` and a `next_offset` value for pagination.
+- **Configuration Examples**:
+  - Running manually in CLI:
+    ```bash
+    AI_COMMAND_MAX_CHARACTERS=4096 mcp-uutils-mcp
+    ```
+  - Specifying in an MCP configuration file (e.g., `mcp.json`):
+    ```json
+    "mcp-uutils": {
+      "command": "/Users/akahmys/.cargo/bin/mcp-uutils-mcp",
+      "env": {
+        "AI_COMMAND_MAX_CHARACTERS": "4096"
+      }
+    }
+    ```
 
 ### 2. Path Safety Validation (`rm -rf` Water-Edge Defense)
 All destructive commands apply path safety validation before execution. Operations on dangerous targets such as `.`, `/`, `*`, `~`, `""` (empty string), or paths ending with wildcards (`/*`, `/.*`) are immediately rejected.
