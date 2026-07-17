@@ -1,42 +1,27 @@
-# Project Work Plan (PLANS.md)
+# Project Roadmap & Execution Log
 
-**Last Updated**: 2026-07-11
+## 🗺️ Roadmap
 
-## 🗺️ Long-Term Plan (Roadmap)
+### Phase 1: Workspace & Guardrails Implementation
+*   **AWU 1.1: Workspace Cargo setup** (Current)
+*   **AWU 1.2: Path safety & Smart Output Truncation Guardrails**
+*   **AWU 1.3: Safe Delete and Read File with Limit Prototype**
 
-* [ ] Phase 1: Core Foundation & Minimal MCP SDK Integration
-* [ ] Phase 2: Complete Coreutils Mapping (`structured_grep` & `verify_file`)
-* [ ] Phase 3: Path Canonicalization & Security Guardrails Implementation
+### Phase 2: Full Tool Suite & MCP Server
+*   **AWU 2.1: Implement MCP wrapper and tool definitions**
+*   **AWU 2.2: Implement remaining core uutils/coreutils tools**
+*   **AWU 2.3: Integrate Rollback Manager and Execution Sandbox**
 
 ---
 
-## 🛠️ Short-Term Plan: Phase 1 (Core Foundation & Minimal MCP SDK Integration)
+## 📝 Execution Log
 
-### 💡 Current AWU Status
+| AWU ID | Task Name | Status | Result / Notes |
+| :--- | :--- | :--- | :--- |
+| **1.1** | **Workspace Cargo setup** | `[✅] Completed` | Converted crate to a Cargo Workspace layout. |
+| 1.2 | Path safety & Smart Output Truncation | `[✅] Completed` | Implemented validate_path_safety and truncate_output. |
+| 1.3 | Safe Delete and Read File with Limit | `[✅] Completed` | Implemented delete_file_or_directory and read_file_with_limit. |
+| 2.1 | MCP Server integration | `[✅] Completed` | Integrated all tools into JSON-RPC schema. |
+| 2.2 | Full Tool Suite | `[✅] Completed` | Implemented all 14 core tools. |
+| 2.3 | Rollback / Sandbox Integration | `[✅] Completed` | Sandbox runner with stdout guard integrated. |
 
-* [ ] AWU-1: [In Progress] Initialize Cargo project and import `uucore`, `uu_ls`, and `uu_cat` from git repository.
-* [ ] AWU-2: [Todo] Implement `inspect_dir` tool by wrapping the `uu_ls` library logic.
-* [ ] AWU-3: [Todo] Implement `peek_file` tool by wrapping the `uu_cat` library logic with line-windowing filters.
-
-### 📝 AWU Details
-
-#### AWU-1: Initialize Cargo project and import `uucore`, `uu_ls`, and `uu_cat` from git repository.
-
-* **Objective**: Create a valid Rust binary project that links successfully with the remote `uutils` Git crates and an empty MCP standard I/O loop.
-* **Scope**: `Cargo.toml`, `src/main.rs`
-* **DoD**: `cargo check` and `cargo clippy --all-targets` pass with zero warnings under strict `#![deny(clippy::pedantic)]`.
-* **Result**:
-
-#### AWU-2: Implement `inspect_dir` tool by wrapping the `uu_ls` library logic.
-
-* **Objective**: Call `uu_ls` core structures internally to fetch directory entries and output a filtered JSON array (name, type, size) that excludes `.git` and `target`.
-* **Scope**: `src/tools/inspect_dir.rs`, `src/main.rs`
-* **DoD**: Unit tests in `src/tools/inspect_dir/tests.rs` pass successfully. Output matches the specific JSON Schema: `Array<{name: string, type: string, size_bytes: number}>`.
-* **Result**:
-
-#### AWU-3: Implement `peek_file` tool by wrapping the `uu_cat` library logic with line-windowing filters.
-
-* **Objective**: Expose an MCP tool that leverages `uu_cat` or its lower-level stream buffers to read only the requested line range, preserving token efficiency.
-* **Scope**: `src/tools/peek_file.rs`, `src/main.rs`
-* **DoD**: `cargo test` passes. Negative test cases (e.g., file not found, permission denied) are cleanly converted from `uucore` errors into `thiserror` domain errors.
-* **Result**:

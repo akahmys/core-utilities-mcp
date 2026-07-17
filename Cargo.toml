@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "mcp-uutils-lib",
+    "mcp-uutils-mcp"
+]
+resolver = "2"

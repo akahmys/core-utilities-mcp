@@ -1,0 +1,483 @@
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::io::{self, BufRead};
+use mcp_uutils_lib::file_ops::{
+    delete_file_or_directory, list_directory_contents, get_file_metadata,
+    copy_file_or_directory, move_file_or_directory, create_directory
+};
+use mcp_uutils_lib::text_ops::{
+    read_file_with_limit, filter_and_sort_matrix_columns, extract_code_skeleton, query_json_by_path
+};
+use mcp_uutils_lib::search_ops::{search_text_with_limit, search_file_by_name_or_type};
+use mcp_uutils_lib::sys_ops::{get_system_context, execute_command_in_sandbox};
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct JsonRpcRequest {
+    jsonrpc: String,
+    id: Option<Value>,
+    method: String,
+    params: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+struct JsonRpcResponse {
+    jsonrpc: String,
+    id: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<JsonRpcError>,
+}
+
+#[derive(Debug, Serialize)]
+struct JsonRpcError {
+    code: i32,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolCallParams {
+    name: String,
+    arguments: Option<Value>,
+}
+
+// Arguments structs
+#[derive(Debug, Deserialize)]
+struct PathArgs {
+    path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ListDirArgs {
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CopyMoveArgs {
+    source: String,
+    destination: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReadArgs {
+    path: String,
+    start_offset: Option<usize>,
+    smart_boundary: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchTextArgs {
+    search_root_or_file: String,
+    query_string: String,
+    is_regex: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchFileArgs {
+    search_root: Option<String>,
+    name_pattern: Option<String>,
+    file_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FilterSortArgs {
+    path: String,
+    columns: Vec<String>,
+    deduplicate: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct QueryJsonArgs {
+    path: String,
+    json_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExecCmdArgs {
+    command: String,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let stdin = io::stdin();
+    let reader = stdin.lock();
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => break,
+        };
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let req: JsonRpcRequest = match serde_json::from_str(&line) {
+            Ok(r) => r,
+            Err(e) => {
+                let err_resp = JsonRpcResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: None,
+                    result: None,
+                    error: Some(JsonRpcError {
+                        code: -32700,
+                        message: format!("Parse error: {}", e),
+                        data: None,
+                    }),
+                };
+                println!("{}", serde_json::to_string(&err_resp)?);
+                continue;
+            }
+        };
+
+        let response = handle_request(req).await;
+        println!("{}", serde_json::to_string(&response)?);
+    }
+
+    Ok(())
+}
+
+async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
+    let id = req.id.clone();
+    match req.method.as_str() {
+        "initialize" => {
+            let result = serde_json::json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "tools": {}
+                },
+                "serverInfo": {
+                    "name": "mcp-uutils-mcp",
+                    "version": "0.1.0"
+                }
+            });
+            JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id,
+                result: Some(result),
+                error: None,
+            }
+        }
+        "tools/list" => {
+            let tools = serde_json::json!({
+                "tools": [
+                    {
+                        "name": "list_directory_contents",
+                        "description": "Lists contents of a directory divided into files, directories, and links.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string", "description": "Target directory path." }
+                            }
+                        }
+                    },
+                    {
+                        "name": "get_file_metadata",
+                        "description": "Retrieves realpath, size, permissions, and modified timestamps for a path.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string" }
+                            },
+                            "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "copy_file_or_directory",
+                        "description": "Copy a file or folder recursively to a destination path.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "source": { "type": "string" },
+                                "destination": { "type": "string" }
+                            },
+                            "required": ["source", "destination"]
+                        }
+                    },
+                    {
+                        "name": "move_file_or_directory",
+                        "description": "Move a file or folder safely to a destination path.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "source": { "type": "string" },
+                                "destination": { "type": "string" }
+                            },
+                            "required": ["source", "destination"]
+                        }
+                    },
+                    {
+                        "name": "delete_file_or_directory",
+                        "description": "Safely delete a file or directory with path validations.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string" }
+                            },
+                            "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "create_directory",
+                        "description": "Creates a directory including intermediate parents (mkdir -p).",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string" }
+                            },
+                            "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "read_file_with_limit",
+                        "description": "Read file contents starting from an optional offset, respecting character boundaries and limits.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string" },
+                                "start_offset": { "type": "integer" },
+                                "smart_boundary": { "type": "boolean" }
+                            },
+                            "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "search_text_with_limit",
+                        "description": "Performs high-efficiency regex or substring search on text files under a directory.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "search_root_or_file": { "type": "string" },
+                                "query_string": { "type": "string" },
+                                "is_regex": { "type": "boolean" }
+                            },
+                            "required": ["search_root_or_file", "query_string"]
+                        }
+                    },
+                    {
+                        "name": "search_file_by_name_or_type",
+                        "description": "Finds files or directories by name patterns or types under a root directory.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "search_root": { "type": "string" },
+                                "name_pattern": { "type": "string" },
+                                "file_type": { "type": "string", "enum": ["file", "directory", "dir", "symlink"] }
+                            }
+                        }
+                    },
+                    {
+                        "name": "filter_and_sort_matrix_columns",
+                        "description": "Filters, sorts, and optionally deduplicates columns from CSV/TSV data.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string" },
+                                "columns": { "type": "array", "items": { "type": "string" } },
+                                "deduplicate": { "type": "boolean" }
+                            },
+                            "required": ["path", "columns"]
+                        }
+                    },
+                    {
+                        "name": "extract_code_skeleton",
+                        "description": "Strips local block execution logic and functions to yield a skeleton representation of classes, functions, and definitions.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string" }
+                            },
+                            "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "query_json_by_path",
+                        "description": "Queries a JSON file using a path query syntax (e.g. data.users[0].id).",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string" },
+                                "json_path": { "type": "string" }
+                            },
+                            "required": ["path", "json_path"]
+                        }
+                    },
+                    {
+                        "name": "get_system_context",
+                        "description": "Aggregates system metadata, disk free space, user IDs, and environment parameters.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    },
+                    {
+                        "name": "execute_command_in_sandbox",
+                        "description": "Runs standard shell commands in a resource-capped environment with stdout line guards.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "command": { "type": "string" }
+                            },
+                            "required": ["command"]
+                        }
+                    }
+                ]
+            });
+            JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id,
+                result: Some(tools),
+                error: None,
+            }
+        }
+        "tools/call" => {
+            let params = match req.params {
+                Some(p) => p,
+                None => {
+                    return JsonRpcResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id,
+                        result: None,
+                        error: Some(JsonRpcError {
+                            code: -32602,
+                            message: "Missing params".to_string(),
+                            data: None,
+                        }),
+                    };
+                }
+            };
+
+            let call_params: ToolCallParams = match serde_json::from_value(params) {
+                Ok(p) => p,
+                Err(e) => {
+                    return JsonRpcResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id,
+                        result: None,
+                        error: Some(JsonRpcError {
+                            code: -32602,
+                            message: format!("Invalid params: {}", e),
+                            data: None,
+                        }),
+                    };
+                }
+            };
+
+            let tool_result = match call_params.name.as_str() {
+                "list_directory_contents" => {
+                    let args: ListDirArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(ListDirArgs { path: None });
+                    list_directory_contents(args.path).map(|v| v.to_string())
+                }
+                "get_file_metadata" => {
+                    let args: PathArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(PathArgs { path: String::new() });
+                    get_file_metadata(&args.path).map(|v| v.to_string())
+                }
+                "copy_file_or_directory" => {
+                    let args: CopyMoveArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(CopyMoveArgs { source: String::new(), destination: String::new() });
+                    copy_file_or_directory(&args.source, &args.destination).map(|_| "Successfully copied targets.".to_string())
+                }
+                "move_file_or_directory" => {
+                    let args: CopyMoveArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(CopyMoveArgs { source: String::new(), destination: String::new() });
+                    move_file_or_directory(&args.source, &args.destination).map(|_| "Successfully moved targets.".to_string())
+                }
+                "delete_file_or_directory" => {
+                    let args: PathArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(PathArgs { path: String::new() });
+                    delete_file_or_directory(&args.path).map(|_| "Successfully deleted targets.".to_string())
+                }
+                "create_directory" => {
+                    let args: PathArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(PathArgs { path: String::new() });
+                    create_directory(&args.path).map(|_| "Successfully created directory.".to_string())
+                }
+                "read_file_with_limit" => {
+                    let args: ReadArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(ReadArgs { path: String::new(), start_offset: None, smart_boundary: None });
+                    read_file_with_limit(&args.path, args.start_offset, args.smart_boundary)
+                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
+                }
+                "search_text_with_limit" => {
+                    let args: SearchTextArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(SearchTextArgs { search_root_or_file: String::new(), query_string: String::new(), is_regex: None });
+                    search_text_with_limit(&args.search_root_or_file, &args.query_string, args.is_regex)
+                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
+                }
+                "search_file_by_name_or_type" => {
+                    let args: SearchFileArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(SearchFileArgs { search_root: None, name_pattern: None, file_type: None });
+                    search_file_by_name_or_type(args.search_root.as_deref(), args.name_pattern.as_deref(), args.file_type.as_deref())
+                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
+                }
+                "filter_and_sort_matrix_columns" => {
+                    let args: FilterSortArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(FilterSortArgs { path: String::new(), columns: Vec::new(), deduplicate: None });
+                    filter_and_sort_matrix_columns(&args.path, args.columns, args.deduplicate)
+                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
+                }
+                "extract_code_skeleton" => {
+                    let args: PathArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(PathArgs { path: String::new() });
+                    extract_code_skeleton(&args.path)
+                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
+                }
+                "query_json_by_path" => {
+                    let args: QueryJsonArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(QueryJsonArgs { path: String::new(), json_path: String::new() });
+                    query_json_by_path(&args.path, &args.json_path).map(|v| v.to_string())
+                }
+                "get_system_context" => {
+                    get_system_context().map(|v| v.to_string())
+                }
+                "execute_command_in_sandbox" => {
+                    let args: ExecCmdArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(ExecCmdArgs { command: String::new() });
+                    match execute_command_in_sandbox(&args.command).await {
+                        Ok(v) => Ok(v.to_string()),
+                        Err(e) => Err(e)
+                    }
+                }
+                _ => Err(format!("Method not found: {}", call_params.name))
+            };
+
+            match tool_result {
+                Ok(msg) => {
+                    let content = serde_json::json!({
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": msg
+                            }
+                        ]
+                    });
+                    JsonRpcResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id,
+                        result: Some(content),
+                        error: None,
+                    }
+                }
+                Err(e) => {
+                    let content = serde_json::json!({
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": format!("Error: {}", e)
+                            }
+                        ],
+                        "isError": true
+                    });
+                    JsonRpcResponse {
+                        jsonrpc: "2.0".to_string(),
+                        id,
+                        result: Some(content),
+                        error: None,
+                    }
+                }
+            }
+        }
+        _ => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code: -32601,
+                message: format!("Method not found: {}", req.method),
+                data: None,
+            }),
+        },
+    }
+}
