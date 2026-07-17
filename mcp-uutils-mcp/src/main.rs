@@ -152,8 +152,12 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
+        let is_notification = req.id.is_none();
         let response = handle_request(req).await;
-        println!("{}", serde_json::to_string(&response)?);
+        
+        if !is_notification {
+            println!("{}", serde_json::to_string(&response)?);
+        }
     }
 
     Ok(())
@@ -177,6 +181,14 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
                 id,
                 result: Some(result),
+                error: None,
+            }
+        }
+        "initialized" => {
+            JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id,
+                result: Some(serde_json::json!({})),
                 error: None,
             }
         }
