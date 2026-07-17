@@ -102,6 +102,25 @@ struct ExecCmdArgs {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 {
+        let arg = &args[1];
+        if arg == "-h" || arg == "--help" {
+            println!("mcp-uutils-mcp - AI-optimized MCP server powered by uutils/coreutils");
+            println!("\nUsage:");
+            println!("  mcp-uutils-mcp [options]");
+            println!("\nOptions:");
+            println!("  -h, --help     Print help information");
+            println!("  -v, --version  Print version information");
+            println!("\nEnvironment Variables:");
+            println!("  AI_COMMAND_MAX_CHARACTERS  Maximum characters returned in output (default: 8192)");
+            return Ok(());
+        } else if arg == "-v" || arg == "--version" {
+            println!("mcp-uutils-mcp 0.1.0");
+            return Ok(());
+        }
+    }
+
     let stdin = io::stdin();
     let reader = stdin.lock();
 
