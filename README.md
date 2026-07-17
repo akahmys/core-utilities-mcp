@@ -56,7 +56,7 @@ All destructive commands apply path safety validation before execution. Operatio
 
 ---
 
-## 🛠️ The 13 Core Command Specification
+## 🛠️ The 15 Core Command Specification
 
 ### File Operations & Directory Management
 1. `list_directory_contents` (ls): Lists contents divided into files, directories, and links.
@@ -65,20 +65,21 @@ All destructive commands apply path safety validation before execution. Operatio
 4. `move_file_or_directory` (mv): Validates source and destination safety.
 5. `delete_file_or_directory` (rm): Rigidly rejects dangerous paths.
 6. `create_directory` (mkdir): Automatically creates parent directories (`mkdir -p`).
+7. `edit_file_content` (edit): Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content.
 
 ### Search & Text Control
-7. `read_file_with_limit` (cat, head, tail): Paginates file reads using `start_offset` and smart truncation.
-8. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
-9. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
+8. `read_file_with_limit` (cat, head, tail): Paginates file reads using `start_offset` and smart truncation.
+9. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
+10. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
 
 ### Structural Data Formatting
-10. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
-11. `extract_code_skeleton`: Uses tree-sitter or regex parses to extract class/function structures, saving ~90% of tokens.
-12. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
+11. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
+12. `extract_code_skeleton`: Uses tree-sitter or regex parses to extract class/function structures, saving ~90% of tokens.
+13. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
 
 ### System & Sandbox
-13. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
-14. `execute_command_in_sandbox`: Runs commands in a constrained sandbox environment.
+14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
+15. `execute_command_in_sandbox`: Runs commands in a constrained sandbox environment.
 
 ---
 
