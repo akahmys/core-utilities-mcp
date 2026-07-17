@@ -1,5 +1,5 @@
 [package]
-name = "mcp-uutils-mcp"
+name = "mcp-uutils"
 version = "0.1.0"
 edition = "2021"
 authors = ["mcp-uutils team"]

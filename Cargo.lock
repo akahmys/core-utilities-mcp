@@ -202,6 +202,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcp-uutils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mcp-uutils-lib",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "mcp-uutils-lib"
 version = "0.1.0"
 dependencies = [
@@ -217,18 +229,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "walkdir",
-]
-
-[[package]]
-name = "mcp-uutils-mcp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "mcp-uutils-lib",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
 ]
 
 [[package]]

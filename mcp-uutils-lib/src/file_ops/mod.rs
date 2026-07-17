@@ -166,6 +166,67 @@ pub fn create_directory(path: &str) -> Result<(), String> {
     std::fs::create_dir_all(Path::new(path)).map_err(|e| format!("Failed to create directory: {}", e))
 }
 
+/// Edit file content in a specific line range if it matches target_content.
+pub fn edit_file_content(
+    path: &str,
+    start_line: usize,
+    end_line: usize,
+    target_content: &str,
+    replacement_content: &str,
+) -> Result<Value, String> {
+    validate_path_safety(path)?;
+    let file_path = Path::new(path);
+    if !file_path.is_file() {
+        return Err(format!("Path is not a file: {}", path));
+    }
+
+    let content = std::fs::read_to_string(file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    
+    let lines: Vec<&str> = content.split('\n').collect();
+
+    if start_line == 0 || end_line < start_line || end_line > lines.len() {
+        return Err(format!(
+            "Invalid line range {}-{} for file with {} lines",
+            start_line, end_line, lines.len()
+        ));
+    }
+
+    let actual_lines = &lines[(start_line - 1)..end_line];
+    let actual_target = actual_lines.join("\n");
+
+    if actual_target.trim() != target_content.trim() {
+        return Err(format!(
+            "Content mismatch. Expected:\n{}\nActual:\n{}",
+            target_content.trim(),
+            actual_target.trim()
+        ));
+    }
+
+    let mut new_lines = Vec::new();
+    new_lines.extend_from_slice(&lines[0..(start_line - 1)]);
+    new_lines.push(replacement_content);
+    if end_line < lines.len() {
+        new_lines.extend_from_slice(&lines[end_line..]);
+    }
+    let new_content = new_lines.join("\n");
+
+    let temp_path = file_path.with_extension("tmp");
+    std::fs::write(&temp_path, new_content.as_bytes())
+        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+
+    std::fs::rename(&temp_path, file_path).map_err(|e| {
+        let _ = std::fs::remove_file(&temp_path);
+        format!("Failed to replace file: {}", e)
+    })?;
+
+    Ok(json!({
+        "status": "success",
+        "lines_modified": (end_line - start_line + 1),
+        "new_line_count": new_lines.len()
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,5 +288,28 @@ mod tests {
         assert!(move_file_or_directory(dest_dir.to_str().unwrap(), moved_dir.to_str().unwrap()).is_ok());
         assert!(!dest_dir.exists());
         assert!(moved_dir.join("test.txt").exists());
+    }
+
+    #[test]
+    fn test_edit_file_content_success() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_edit.txt");
+        std::fs::write(&file_path, b"line 1\nline 2\nline 3\nline 4").unwrap();
+
+        let path_str = file_path.to_str().unwrap();
+
+        // Test editing lines 2 to 3
+        let res = edit_file_content(path_str, 2, 3, "line 2\nline 3", "new line 2\nnew line 3").unwrap();
+        assert_eq!(res["status"], "success");
+        assert_eq!(res["lines_modified"], 2);
+
+        let updated_content = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(updated_content, "line 1\nnew line 2\nnew line 3\nline 4");
+
+        // Test oob range error
+        assert!(edit_file_content(path_str, 2, 5, "anything", "anything").is_err());
+
+        // Test content mismatch error
+        assert!(edit_file_content(path_str, 2, 3, "wrong target", "anything").is_err());
     }
 }

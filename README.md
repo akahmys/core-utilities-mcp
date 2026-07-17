@@ -21,7 +21,7 @@ mcp-uutils/
 │       ├── file_ops/           # File and directory manipulation (cp, mv, rm, mkdir, list, stat)
 │       ├── search_ops/         # High-efficiency finder and grep operations
 │       └── text_ops/           # Pagination, parsing, structural extraction
-└── mcp-uutils-mcp/             # [Wrapper] MCP Server implementation (depends on mcp-uutils-lib)
+└── mcp-uutils/                 # [Wrapper] MCP Server implementation (depends on mcp-uutils-lib)
     ├── Cargo.toml
     └── src/main.rs             # JSON-RPC MCP handlers wrapping the core library
 ```
@@ -39,12 +39,12 @@ All commands outputting text respect the `AI_COMMAND_MAX_CHARACTERS` environment
 - **Configuration Examples**:
   - Running manually in CLI:
     ```bash
-    AI_COMMAND_MAX_CHARACTERS=4096 mcp-uutils-mcp
+    AI_COMMAND_MAX_CHARACTERS=4096 mcp-uutils
     ```
   - Specifying in an MCP configuration file (e.g., `mcp.json`):
     ```json
     "mcp-uutils": {
-      "command": "/Users/akahmys/.cargo/bin/mcp-uutils-mcp",
+      "command": "/Users/akahmys/.cargo/bin/mcp-uutils",
       "env": {
         "AI_COMMAND_MAX_CHARACTERS": "4096"
       }

@@ -112,7 +112,7 @@ def main():
         license_expr = pkg.get("license")
         
         # Skip workspace member package checks if desired
-        if pkg_name in ["mcp-uutils-lib", "mcp-uutils-mcp"]:
+        if pkg_name in ["mcp-uutils-lib", "mcp-uutils"]:
             continue
             
         is_ok, err_reason = check_package_license(license_expr)

@@ -3,7 +3,7 @@
 ## 🗺️ Roadmap
 
 ### Phase 1: Workspace & Guardrails Implementation
-*   **AWU 1.1: Workspace Cargo setup** (Current)
+*   **AWU 1.1: Workspace Cargo setup**
 *   **AWU 1.2: Path safety & Smart Output Truncation Guardrails**
 *   **AWU 1.3: Safe Delete and Read File with Limit Prototype**
 
@@ -11,6 +11,7 @@
 *   **AWU 2.1: Implement MCP wrapper and tool definitions**
 *   **AWU 2.2: Implement remaining core uutils/coreutils tools**
 *   **AWU 2.3: Integrate Rollback Manager and Execution Sandbox**
+*   **AWU 2.4: Reinstall renamed mcp-uutils binary** (Current)
 
 ---
 
@@ -24,4 +25,4 @@
 | 2.1 | MCP Server integration | `[✅] Completed` | Integrated all tools into JSON-RPC schema. |
 | 2.2 | Full Tool Suite | `[✅] Completed` | Implemented all 14 core tools. |
 | 2.3 | Rollback / Sandbox Integration | `[✅] Completed` | Sandbox runner with stdout guard integrated. |
-
+| 2.4 | Reinstall renamed mcp-uutils binary | `[✅] Completed` | Successfully reinstalled mcp-uutils to cargo bin. |

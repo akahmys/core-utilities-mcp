@@ -20,7 +20,7 @@ Traditional UNIX-style command-line interfaces, designed for human interaction a
 
 ```mermaid
 graph TD
-    AI[AI Agent / LLM] -->|JSON-RPC| MCP[mcp-uutils-mcp]
+    AI[AI Agent / LLM] -->|JSON-RPC| MCP[mcp-uutils]
     AI -->|Static Rust Call| LIB[mcp-uutils-lib]
     MCP -->|Direct Function Invocation| LIB
     
@@ -42,7 +42,7 @@ Decoupled logic without process boundaries. Organized into:
 - `search_ops`: High-efficiency grep and find implementations.
 - `text_ops`: Utilities for pagination, line-windowing, and structured extraction.
 
-### 2. `mcp-uutils-mcp` (External Protocol Wrapper)
+### 2. `mcp-uutils` (External Protocol Wrapper)
 A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC requests, parses input into strongly-typed Rust structures, executes them via `mcp-uutils-lib`, and outputs structured JSON responses.
 
 ---

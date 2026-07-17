@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::io::{self, BufRead};
 use mcp_uutils_lib::file_ops::{
     delete_file_or_directory, list_directory_contents, get_file_metadata,
-    copy_file_or_directory, move_file_or_directory, create_directory
+    copy_file_or_directory, move_file_or_directory, create_directory, edit_file_content
 };
 use mcp_uutils_lib::text_ops::{
     read_file_with_limit, filter_and_sort_matrix_columns, extract_code_skeleton, query_json_by_path
@@ -62,6 +62,15 @@ struct CopyMoveArgs {
 }
 
 #[derive(Debug, Deserialize)]
+struct EditFileArgs {
+    path: String,
+    start_line: usize,
+    end_line: usize,
+    target_content: String,
+    replacement_content: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct ReadArgs {
     path: String,
     start_offset: Option<usize>,
@@ -106,9 +115,9 @@ async fn main() -> anyhow::Result<()> {
     if args.len() > 1 {
         let arg = &args[1];
         if arg == "-h" || arg == "--help" {
-            println!("mcp-uutils-mcp - AI-optimized MCP server powered by uutils/coreutils");
+            println!("mcp-uutils - AI-optimized MCP server powered by uutils/coreutils");
             println!("\nUsage:");
-            println!("  mcp-uutils-mcp [options]");
+            println!("  mcp-uutils [options]");
             println!("\nOptions:");
             println!("  -h, --help     Print help information");
             println!("  -v, --version  Print version information");
@@ -116,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
             println!("  AI_COMMAND_MAX_CHARACTERS  Maximum characters returned in output (default: 8192)");
             return Ok(());
         } else if arg == "-v" || arg == "--version" {
-            println!("mcp-uutils-mcp 0.1.0");
+            println!("mcp-uutils 0.1.0");
             return Ok(());
         }
     }
@@ -173,7 +182,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "mcp-uutils-mcp",
+                    "name": "mcp-uutils",
                     "version": "0.1.0"
                 }
             });
@@ -260,6 +269,21 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                                 "path": { "type": "string" }
                             },
                             "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "edit_file_content",
+                        "description": "Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content before replacement.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": { "type": "string", "description": "The file path to edit." },
+                                "start_line": { "type": "integer", "description": "1-indexed start line of the range to edit." },
+                                "end_line": { "type": "integer", "description": "1-indexed end line of the range to edit (inclusive)." },
+                                "target_content": { "type": "string", "description": "The exact content expected within the line range to prevent stale edits." },
+                                "replacement_content": { "type": "string", "description": "The replacement content." }
+                            },
+                            "required": ["path", "start_line", "end_line", "target_content", "replacement_content"]
                         }
                     },
                     {
@@ -421,6 +445,13 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                 "create_directory" => {
                     let args: PathArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(PathArgs { path: String::new() });
                     create_directory(&args.path).map(|_| "Successfully created directory.".to_string())
+                }
+                "edit_file_content" => {
+                    let args_res: Result<EditFileArgs, _> = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null));
+                    match args_res {
+                        Ok(args) => edit_file_content(&args.path, args.start_line, args.end_line, &args.target_content, &args.replacement_content).map(|v| v.to_string()),
+                        Err(e) => Err(format!("Invalid arguments for edit_file_content: {}", e))
+                    }
                 }
                 "read_file_with_limit" => {
                     let args: ReadArgs = serde_json::from_value(call_params.arguments.unwrap_or(Value::Null)).unwrap_or(ReadArgs { path: String::new(), start_offset: None, smart_boundary: None });
