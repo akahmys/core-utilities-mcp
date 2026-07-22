@@ -1,6 +1,6 @@
-# mcp-uutils
+# core-utilities-mcp
 
-`mcp-uutils` is an AI-optimized Rust library and Model Context Protocol (MCP) server, powered by a modular, pure Rust design with optional integration of the standard UNIX utilities engine (`uutils/coreutils`).
+`core-utilities-mcp` is an AI-optimized Rust library and Model Context Protocol (MCP) server, powered by a modular, pure Rust design with optional integration of the standard UNIX utilities engine (`uutils/coreutils`).
 
 It translates heavy, unpredictable, and raw shell commands into deterministic, JSON-structured, and line-windowed API tools. It is structured as a **Cargo Workspace** to eliminate process invocation overhead by compiling as a library, allowing direct integration into custom AI agents or standalone execution as an MCP server.
 
@@ -11,9 +11,9 @@ It translates heavy, unpredictable, and raw shell commands into deterministic, J
 The repository is structured as follows:
 
 ```
-mcp-uutils/
+core-utilities-mcp/
 ├── Cargo.toml                  # Workspace configuration
-├── mcp-uutils-lib/             # [Core] Independent pure Rust library crate
+├── core-utilities-mcp-lib/     # [Core] Independent pure Rust library crate
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs              # Public entry point and shared interfaces
@@ -21,7 +21,7 @@ mcp-uutils/
 │       ├── file_ops/           # File and directory manipulation (cp, mv, rm, mkdir, list, stat)
 │       ├── search_ops/         # High-efficiency finder and grep operations
 │       └── text_ops/           # Pagination, parsing, structural extraction
-└── mcp-uutils/                 # [Wrapper] MCP Server implementation (depends on mcp-uutils-lib)
+└── core-utilities-mcp/         # [Wrapper] MCP Server implementation (depends on core-utilities-mcp-lib)
     ├── Cargo.toml
     └── src/main.rs             # JSON-RPC MCP handlers wrapping the core library
 ```
@@ -30,7 +30,7 @@ mcp-uutils/
 
 ## 🛡️ Common Guardrails
 
-`mcp-uutils-lib` enforces mechanical guardrails to prevent AI failures:
+`core-utilities-mcp-lib` enforces mechanical guardrails to prevent AI failures:
 
 ### 1. Global Character Limits (`AI_COMMAND_MAX_CHARACTERS`)
 All commands outputting text respect the `AI_COMMAND_MAX_CHARACTERS` environment variable (default: `8192`).
@@ -39,12 +39,12 @@ All commands outputting text respect the `AI_COMMAND_MAX_CHARACTERS` environment
 - **Configuration Examples**:
   - Running manually in CLI:
     ```bash
-    AI_COMMAND_MAX_CHARACTERS=4096 mcp-uutils
+    AI_COMMAND_MAX_CHARACTERS=4096 core-utilities-mcp
     ```
   - Specifying in an MCP configuration file (e.g., `mcp.json`):
     ```json
-    "mcp-uutils": {
-      "command": "/Users/akahmys/.cargo/bin/mcp-uutils",
+    "core-utilities-mcp": {
+      "command": "/Users/akahmys/.cargo/bin/core-utilities-mcp",
       "env": {
         "AI_COMMAND_MAX_CHARACTERS": "4096"
       }

@@ -1,15 +1,15 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, BufRead};
-use mcp_uutils_lib::file_ops::{
+use core_utilities_mcp_lib::file_ops::{
     delete_file_or_directory, list_directory_contents, get_file_metadata,
     copy_file_or_directory, move_file_or_directory, create_directory, edit_file_content
 };
-use mcp_uutils_lib::text_ops::{
+use core_utilities_mcp_lib::text_ops::{
     read_file_with_limit, filter_and_sort_matrix_columns, extract_code_skeleton, query_json_by_path
 };
-use mcp_uutils_lib::search_ops::{search_text_with_limit, search_file_by_name_or_type};
-use mcp_uutils_lib::sys_ops::{get_system_context, execute_command_in_sandbox};
+use core_utilities_mcp_lib::search_ops::{search_text_with_limit, search_file_by_name_or_type};
+use core_utilities_mcp_lib::sys_ops::{get_system_context, execute_command_in_sandbox};
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
@@ -115,9 +115,9 @@ async fn main() -> anyhow::Result<()> {
     if args.len() > 1 {
         let arg = &args[1];
         if arg == "-h" || arg == "--help" {
-            println!("mcp-uutils - AI-optimized MCP server powered by uutils/coreutils");
+            println!("core-utilities-mcp - AI-optimized MCP server powered by uutils/coreutils");
             println!("\nUsage:");
-            println!("  mcp-uutils [options]");
+            println!("  core-utilities-mcp [options]");
             println!("\nOptions:");
             println!("  -h, --help     Print help information");
             println!("  -v, --version  Print version information");
@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
             println!("  AI_COMMAND_MAX_CHARACTERS  Maximum characters returned in output (default: 8192)");
             return Ok(());
         } else if arg == "-v" || arg == "--version" {
-            println!("mcp-uutils 0.1.0");
+            println!("core-utilities-mcp 0.1.0");
             return Ok(());
         }
     }
@@ -182,7 +182,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "mcp-uutils",
+                    "name": "core-utilities-mcp",
                     "version": "0.1.0"
                 }
             });

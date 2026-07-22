@@ -14,7 +14,7 @@ Every short-term plan item must be broken down into an AWU that satisfies ALL of
 
 * **Clear Definition of Done (DoD)**: Exactly one objective, unambiguous and measurable (e.g., "All unit tests pass," "Compilation succeeds with zero warnings").
 * **Tight & Localized Scope**: A strictly limited target file set. The modification must focus on minimizing collateral changes (ideally impacting $\le$ 3 files per unit).
-* **Context Window Fit**: Optimized for token efficiency. Avoid designing massive AWUs that force the agent to inspect large portions of the codebase simultaneously. Leverage `mcp-uutils` to keep file analysis granular.
+* **Context Window Fit**: Optimized for token efficiency. Avoid designing massive AWUs that force the agent to inspect large portions of the codebase simultaneously. Leverage `core-utilities-mcp` to keep file analysis granular.
 
 ---
 
@@ -46,7 +46,7 @@ If the implementation phase reveals a fundamental design flaw, an unexpected blo
 
 ## 5. `PLANS.md` Structural Template
 
-All updates to `PLANS.md` made via `mcp-uutils` must strictly follow this visual structure:
+All updates to `PLANS.md` made via `core-utilities-mcp` must strictly follow this visual structure:
 
 ```markdown
 # Project Work Plan (PLANS.md)

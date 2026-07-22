@@ -41,13 +41,13 @@
 
 ## 🤖 5. Mechanical Audit (Automated Verification)
 
-Execute the following verification suite via `mcp-uutils:spawn_bash_process` and ensure all checks achieve flawless termination:
+Execute the following verification suite via `core-utilities-mcp:spawn_bash_process` and ensure all checks achieve flawless termination:
 
 * **Compilation**: `cargo check` passes with absolute zero errors.
 * **Formatting**: `cargo fmt --check` succeeds with no style discrepancies.
 * **Linting**: `cargo clippy --all-targets` passes with **zero warnings** under strict `#![deny(clippy::pedantic)]` constraints.
 * **Testing**: `cargo test` successfully clears all unit, integration, and doc-test suites across target workspaces.
-* **State Audit**: Execute `mcp-uutils:verify_file` on altered assets to double-check exact file metrics (lines, bytes, and hashes) before finalized logging.
+* **State Audit**: Execute `core-utilities-mcp:verify_file` on altered assets to double-check exact file metrics (lines, bytes, and hashes) before finalized logging.
 
 ---
 

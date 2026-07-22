@@ -11,7 +11,8 @@
 *   **AWU 2.1: Implement MCP wrapper and tool definitions**
 *   **AWU 2.2: Implement remaining core uutils/coreutils tools**
 *   **AWU 2.3: Integrate Rollback Manager and Execution Sandbox**
-*   **AWU 2.4: Reinstall renamed mcp-uutils binary** (Current)
+*   **AWU 2.4: Reinstall renamed mcp-uutils binary**
+*   **AWU 2.5: Rename project to core-utilities-mcp**
 
 ---
 
@@ -26,3 +27,4 @@
 | 2.2 | Full Tool Suite | `[✅] Completed` | Implemented all 14 core tools. |
 | 2.3 | Rollback / Sandbox Integration | `[✅] Completed` | Sandbox runner with stdout guard integrated. |
 | 2.4 | Reinstall renamed mcp-uutils binary | `[✅] Completed` | Successfully reinstalled mcp-uutils to cargo bin. |
+| 2.5 | Rename project to core-utilities-mcp | `[✅] Completed` | Successfully renamed directories, workspace crates (`core-utilities-mcp` & `core-utilities-mcp-lib`), Rust imports, binary output, license script, and all documentation. Installed binary to `~/.cargo/bin/core-utilities-mcp`. |

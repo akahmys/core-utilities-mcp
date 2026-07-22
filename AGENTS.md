@@ -1,6 +1,6 @@
 # AGENTS.md (Agent Governance & Operational Hub)
 
-**Role:** High-Precision Autonomous Coding Agent for the `mcp-uutils` ecosystem.
+**Role:** High-Precision Autonomous Coding Agent for the `core-utilities-mcp` ecosystem.
 **Mission:** Execute codebase modifications, refactoring, and software engineering tasks with extreme technical rigor via a strict **"Plan-Execute-Audit"** cycle.
 
 ---
@@ -10,7 +10,7 @@
 * **Precision:** Every action must follow established technical policies. No guesswork or speculative coding.
 * **Integrity:** Never delete execution history, completed tasks, or roadmap items in `PLANS.md` without explicit user instruction.
 * **Safety:** Strictly respect directory boundaries (`WORKSPACE_ROOT`). Never attempt to access or modify paths outside the allowed workspace.
-* **Token Efficiency:** Minimize context overhead. Always prioritize native `mcp-uutils` structured tools over generic shell access (`bash`).
+* **Token Efficiency:** Minimize context overhead. Always prioritize native `core-utilities-mcp` structured tools over generic shell access (`bash`).
 
 ---
 
@@ -32,7 +32,7 @@ Strictly follow this sequence for every Atomic Work Unit (AWU). Timing and phase
 
 **Trigger:** A new task is assigned or a new sub-task is identified.
 
-* **Action:** 1. Review the global project roadmap and current status by reading `PLANS.md` via `mcp-uutils:peek_file`.
+* **Action:** 1. Review the global project roadmap and current status by reading `PLANS.md` via `core-utilities-mcp:peek_file`.
 2. Decompose the task into discrete, measurable Atomic Work Units (AWUs).
 3. **Update `PLANS.md**`: Create a new entry in the "Short-Term Plan" indicating the objective, scope, and Definition of Done (DoD) for the upcoming unit.
 * **Goal:** Ensure task atomicity and maintain a transparent, verifiable roadmap.
@@ -42,10 +42,10 @@ Strictly follow this sequence for every Atomic Work Unit (AWU). Timing and phase
 **Trigger:** Modifying code, exploring files, or running tests.
 
 * **Action:**
-1. Inspect the workspace structure efficiently using `mcp-uutils:inspect_dir`.
-2. Read target files precisely using line-windowed boundaries with `mcp-uutils:peek_file`. Never read large files in their entirety.
-3. Search for patterns or cross-references using `mcp-uutils:structured_grep` to capture code context in a single turn.
-4. Write or modify files using deterministic file manipulation tools, and execute tests or compilers via `mcp-uutils:spawn_bash_process`.
+1. Inspect the workspace structure efficiently using `core-utilities-mcp:inspect_dir`.
+2. Read target files precisely using line-windowed boundaries with `core-utilities-mcp:peek_file`. Never read large files in their entirety.
+3. Search for patterns or cross-references using `core-utilities-mcp:structured_grep` to capture code context in a single turn.
+4. Write or modify files using deterministic file manipulation tools, and execute tests or compilers via `core-utilities-mcp:spawn_bash_process`.
 
 
 * **Goal:** Produce high-quality, warning-free, and logically sound implementations.
@@ -55,8 +55,8 @@ Strictly follow this sequence for every Atomic Work Unit (AWU). Timing and phase
 **Trigger:** Code implementation is physically complete, **BEFORE** marking the task as completed in `PLANS.md`.
 
 * **Action:**
-1. Run automated test suites, linters, and compilers via `mcp-uutils:spawn_bash_process` to ensure code health.
-2. Use `mcp-uutils:verify_file` to audit file line counts, byte sizes, and cryptographic checksums to verify target status.
+1. Run automated test suites, linters, and compilers via `core-utilities-mcp:spawn_bash_process` to ensure code health.
+2. Use `core-utilities-mcp:verify_file` to audit file line counts, byte sizes, and cryptographic checksums to verify target status.
 3. Validate adherence to code style guidelines (e.g., function complexity, line limits).
 4. **Update `PLANS.md**`: If all audits pass $\rightarrow$ Mark the AWU as `[✅] Completed` and record the execution `Result`.
 
@@ -71,7 +71,7 @@ Strictly follow this sequence for every Atomic Work Unit (AWU). Timing and phase
 
 * **On-Demand Loading**: Read **only** the exact lines or files required for the immediate execution step. Do not load irrelevant source trees.
 * **Incremental Changes**: Apply precise, localized diffs and patches. Avoid rewriting entire source files for minor edits.
-* **Context Hygiene**: Keep your conversation context clean. Avoid high-output or verbose shell commands (e.g., `ls -R`, raw recursive `grep`). Use target-filtered `mcp-uutils` commands instead.
+* **Context Hygiene**: Keep your conversation context clean. Avoid high-output or verbose shell commands (e.g., `ls -R`, raw recursive `grep`). Use target-filtered `core-utilities-mcp` commands instead.
 
 ---
 

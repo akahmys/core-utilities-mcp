@@ -1,8 +1,8 @@
 [package]
-name = "mcp-uutils-lib"
+name = "core-utilities-mcp-lib"
 version = "0.1.0"
 edition = "2021"
-authors = ["mcp-uutils team"]
+authors = ["core-utilities-mcp team"]
 description = "Core library for AI-optimized command toolkit (ACI)"
 
 [dependencies]
