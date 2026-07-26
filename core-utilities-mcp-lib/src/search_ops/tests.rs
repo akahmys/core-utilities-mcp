@@ -5,7 +5,7 @@ use tempfile::tempdir;
 
 #[test]
 fn test_search_text() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("search.txt");
     let mut file = File::create(&file_path).unwrap();
@@ -20,7 +20,7 @@ fn test_search_text() {
 
 #[test]
 fn test_search_file_by_name() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     File::create(dir.path().join("target_file.rs")).unwrap();
     File::create(dir.path().join("ignore.txt")).unwrap();

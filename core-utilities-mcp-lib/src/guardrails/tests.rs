@@ -32,7 +32,7 @@ fn test_nul_byte_rejected() {
 
 #[test]
 fn test_truncate_output_success() {
-    let _lock = ENV_MUTEX.lock().unwrap();
+    let _lock = ENV_MUTEX.blocking_lock();
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "10");
     let res = truncate_output("hello");
     assert_eq!(res.content, "hello");
@@ -42,7 +42,7 @@ fn test_truncate_output_success() {
 
 #[test]
 fn test_truncate_output_smart_boundary() {
-    let _lock = ENV_MUTEX.lock().unwrap();
+    let _lock = ENV_MUTEX.blocking_lock();
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "10");
     // Limit is 10, newline at index 5. Should cut at 6 (after \n)
     let res = truncate_output("hello\nworld!");
@@ -53,7 +53,7 @@ fn test_truncate_output_smart_boundary() {
 
 #[test]
 fn test_truncate_output_hard_cutoff() {
-    let _lock = ENV_MUTEX.lock().unwrap();
+    let _lock = ENV_MUTEX.blocking_lock();
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "10");
     // Limit 10, no newline
     let res = truncate_output("helloworldtest");

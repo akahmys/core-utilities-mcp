@@ -153,8 +153,14 @@ pub fn truncate_output(input: &str) -> TruncateResult {
     }
 }
 
+/// Guards mutations of the process-global `AI_COMMAND_MAX_CHARACTERS`
+/// environment variable across tests that run concurrently within the same
+/// test binary. A `tokio::sync::Mutex` (rather than `std::sync::Mutex`) is
+/// used deliberately: `sys_ops`'s async tests must hold the guard across an
+/// `.await`, which clippy's `await_holding_lock` lint (rightly) flags for
+/// std mutexes but not for tokio's async-aware one.
 #[cfg(test)]
-pub static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub static ENV_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[cfg(test)]
 mod tests;

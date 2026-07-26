@@ -5,7 +5,7 @@ use tempfile::tempdir;
 
 #[test]
 fn test_read_file_within_limit() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test_read.txt");
     let mut file = File::create(&file_path).unwrap();
@@ -21,7 +21,7 @@ fn test_read_file_within_limit() {
 
 #[test]
 fn test_read_file_with_offset_and_truncation() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test_read.txt");
     let mut file = File::create(&file_path).unwrap();
@@ -37,7 +37,7 @@ fn test_read_file_with_offset_and_truncation() {
 
 #[test]
 fn test_filter_and_sort_matrix_columns() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("matrix.csv");
     let mut file = File::create(&file_path).unwrap();
@@ -60,7 +60,7 @@ fn test_filter_and_sort_matrix_columns() {
 
 #[test]
 fn test_extract_code_skeleton() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("code.rs");
     let mut file = File::create(&file_path).unwrap();
@@ -97,7 +97,7 @@ fn test_query_json_by_path() {
 
 #[test]
 fn test_filter_and_sort_matrix_columns_no_matching_columns() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("matrix.csv");
     let mut file = File::create(&file_path).unwrap();

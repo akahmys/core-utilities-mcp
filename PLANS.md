@@ -33,9 +33,9 @@
 *   [x] **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown)
 *   [x] **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC)
 
-### Phase 4: Quality Assurance & Automation (In Progress)
+### Phase 4: Quality Assurance & Automation (Completed)
 *   [x] **AWU 6.1: Expand Test Coverage** (unit, integration, property)
-*   [ ] **AWU 6.2: CI/CD Pipeline Setup** (GitHub Actions)
+*   [x] **AWU 6.2: CI/CD Pipeline Setup** (GitHub Actions)
 
 ---
 
@@ -64,8 +64,9 @@
 | **5.3** | **Add Integration Testing** | `[✅] Completed` | Added `core-utilities-mcp/tests/integration_test.rs` (157 lines): spawns the real compiled binary and drives it over actual stdin/stdout pipes. 7 tests cover `initialize`/`tools/list` (asserts all 15 tools), a successful `tools/call`, a failing `tools/call` asserting `error_type`, malformed-JSON parse errors, unknown-method errors, notification-produces-no-output-line, and graceful exit on stdin close. All pass; `cargo fmt`/`clippy` clean. |
 | **6.1** | **Expand Test Coverage** | `[✅] Completed` | Added `proptest` dev-dependency and `core-utilities-mcp-lib/tests/property_tests.rs` (6 property tests: `truncate_output` bounds/prefix/next_offset invariants, `validate_path_safety` NUL-byte/whitespace rejection). Added 6 new unit tests for previously-untested error paths (`file_ops` nonexistent-target errors, `search_ops` invalid-regex/nonexistent-root errors, `text_ops` missing-column/missing-JSON-path/invalid-JSON errors). While touching every test module, also fixed a pre-existing `CODING.md` violation ("Strict Test Separation"): extracted all inline `#[cfg(test)] mod tests { ... }` blocks in `guardrails`, `file_ops`, `search_ops`, `text_ops`, `sys_ops` into companion `tests.rs` files (mechanical move, no logic changes), which also brought `file_ops/mod.rs` and `text_ops/mod.rs` back toward the 300-line production-file limit (still 374/270 respectively — `file_ops/mod.rs` remains over the limit due to AWU 4.3's doc comments; splitting production logic further was judged out of scope for this AWU). Total suite: 27 unit + 6 property + 7 integration + 17 doctests, all passing; `cargo fmt`/`clippy` clean. |
 
+| **6.2** | **CI/CD Pipeline Setup** | `[✅] Completed` | Added `.github/workflows/ci.yml` (checkout → stable toolchain w/ rustfmt+clippy → cargo cache → `fmt --check` → `clippy --workspace --all-targets -- -D warnings` → `build` → `test`), triggered on push/PR to `main`. This exposed the one pre-existing clippy warning (`await_holding_lock` in a `sys_ops` test holding `ENV_MUTEX` across an `.await`) as a real CI blocker: fixed by switching `ENV_MUTEX` from `std::sync::Mutex` to `tokio::sync::Mutex` (sync tests now use `.blocking_lock()`, the async test uses `.lock().await`), which is the correct fix rather than suppressing the lint. `cargo clippy --workspace --all-targets -- -D warnings` now passes cleanly. README documents the CI pipeline. |
+
 ---
 
 ## 🚀 Next Steps
-1. **AWU 6.2: CI/CD Pipeline Setup** (GitHub Actions).
-2. Follow-up (not yet an AWU): `core-utilities-mcp-lib/src/file_ops/mod.rs` (374 lines) still exceeds the 300-line CODING.md limit purely from doc comments + logic; consider splitting into smaller per-operation files if this becomes a recurring audit finding.
+All planned roadmap phases (1–4) are now complete. Remaining open item (not yet an AWU): `core-utilities-mcp-lib/src/file_ops/mod.rs` (374 lines) still exceeds the 300-line CODING.md limit purely from doc comments + logic; consider splitting into smaller per-operation files if this becomes a recurring audit finding.

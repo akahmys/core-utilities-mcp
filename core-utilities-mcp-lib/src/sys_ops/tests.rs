@@ -9,7 +9,7 @@ fn test_get_system_context() {
 
 #[tokio::test]
 async fn test_execute_command_success() {
-    let _lock = crate::guardrails::ENV_MUTEX.lock().unwrap();
+    let _lock = crate::guardrails::ENV_MUTEX.lock().await;
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "100");
     let res = execute_command_in_sandbox("echo hello").await.unwrap();
     assert_eq!(res["exit_code"], 0);

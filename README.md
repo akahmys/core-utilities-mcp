@@ -93,8 +93,11 @@ All destructive commands apply path safety validation before execution. Operatio
 
 ## ⚡ Setup & Test
 
-### Run Unit Tests
-Every command contains unit tests for edge cases and limits.
+### Run Tests
+Every command has unit tests for edge cases and limits, plus property tests for the guardrails and end-to-end JSON-RPC integration tests for the server.
 ```bash
 cargo test --all
 ```
+
+### Continuous Integration
+Every push and pull request to `main` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, and `cargo test` via [GitHub Actions](.github/workflows/ci.yml).
