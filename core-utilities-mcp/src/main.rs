@@ -11,6 +11,8 @@ use core_utilities_mcp_lib::text_ops::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{self, BufRead};
+use tracing::{debug, info, warn};
+use tracing_subscriber::EnvFilter;
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
@@ -110,8 +112,21 @@ struct ExecCmdArgs {
     command: String,
 }
 
+/// Initializes a `tracing` subscriber that writes structured logs to
+/// stderr, controlled by `RUST_LOG` (defaulting to `info`). Logs must never
+/// go to stdout, which is reserved exclusively for JSON-RPC responses.
+fn init_tracing() {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_env_filter(filter)
+        .init();
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    init_tracing();
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
         let arg = &args[1];
@@ -131,6 +146,8 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    info!("core-utilities-mcp starting; awaiting JSON-RPC requests on stdin");
+
     let stdin = io::stdin();
     let reader = stdin.lock();
 
@@ -147,6 +164,7 @@ async fn main() -> anyhow::Result<()> {
         let req: JsonRpcRequest = match serde_json::from_str(&line) {
             Ok(r) => r,
             Err(e) => {
+                warn!(error = %e, "failed to parse JSON-RPC request");
                 let err_resp = JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     id: None,
@@ -162,6 +180,7 @@ async fn main() -> anyhow::Result<()> {
             }
         };
 
+        debug!(method = %req.method, "received JSON-RPC request");
         let is_notification = req.id.is_none();
         let response = handle_request(req).await;
 
@@ -170,6 +189,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    info!("stdin closed; core-utilities-mcp shutting down");
     Ok(())
 }
 
@@ -597,6 +617,12 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     }
                 }
                 Err(e) => {
+                    warn!(
+                        tool = %call_params.name,
+                        error_type = e.category(),
+                        error = %e,
+                        "tool call failed"
+                    );
                     let content = serde_json::json!({
                         "content": [
                             {

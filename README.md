@@ -51,7 +51,13 @@ All commands outputting text respect the `AI_COMMAND_MAX_CHARACTERS` environment
     }
     ```
 
-### 2. Path Safety Validation (`rm -rf` Water-Edge Defense)
+### 2. Structured Logging (`RUST_LOG`)
+The server emits structured `tracing` logs to **stderr** (never stdout, which is reserved for JSON-RPC), controlled by the standard `RUST_LOG` environment variable (default: `info`). Each request logs its method; each failed tool call logs the tool name and `error_type`.
+```bash
+RUST_LOG=debug core-utilities-mcp
+```
+
+### 3. Path Safety Validation (`rm -rf` Water-Edge Defense)
 All destructive commands apply path safety validation before execution. Operations on dangerous targets such as `.`, `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
 
 ---

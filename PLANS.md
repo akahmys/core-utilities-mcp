@@ -28,8 +28,8 @@
 *   [x] **AWU 4.2: Enhance Guardrails & Safety**
 *   [x] **AWU 4.3: Documentation & API Design** (doc comments & examples)
 
-### Phase 3: Server Maturity (Planned)
-*   [ ] **AWU 5.1: Integrate Structured Logging** (tracing)
+### Phase 3: Server Maturity (In Progress)
+*   [x] **AWU 5.1: Integrate Structured Logging** (tracing)
 *   [ ] **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown)
 *   [ ] **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC)
 
@@ -59,10 +59,10 @@
 | **4.4** | **Refactor `tools/call` Error Handling** | `[✅] Completed` | All `tools/call` arms now return `Result<String, CoreError>`; error responses include `error_type` from `CoreError::category()`. Verified via manual JSON-RPC smoke test and `cargo test --workspace` (19 passed). |
 | **4.2** | **Enhance Guardrails & Safety** | `[✅] Completed` | `validate_path_safety` now also rejects NUL-byte paths and exact (case-insensitive) matches against a deny-list of critical system directories (`/etc`, `/bin`, `/sbin`, `/usr`, `/boot`, `/dev`, `/proc`, `/sys`, `/root`, `/System`, `/Library`, `C:\Windows`, `C:\Program Files`); subpaths remain permitted. Corrected `execute_command_in_sandbox` docs to no longer claim an enforced memory limit (only timeout + output-size kill switch exist). README updated. |
 | **4.3** | **Documentation & API Design** | `[✅] Completed` | Added crate-level (`//!`) and per-module doc comments across `guardrails`, `file_ops`, `search_ops`, `text_ops`, `sys_ops`, each with `# Errors` and `# Examples` sections. `cargo test --doc` grew from 0 to 17 passing doctests. |
+| **5.1** | **Integrate Structured Logging** | `[✅] Completed` | Added `tracing`/`tracing-subscriber` to `core-utilities-mcp`. Logs (request method, tool name, `error_type` on failure, startup/shutdown) go to stderr only, gated by `RUST_LOG` (default `info`); stdout remains pure JSON-RPC. Verified via manual stdout/stderr separation test. README documents `RUST_LOG`. |
 
 ---
 
 ## 🚀 Next Steps
-1. **AWU 5.1: Integrate Structured Logging** (tracing).
-2. **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown).
-3. **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC).
+1. **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown).
+2. **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC).
