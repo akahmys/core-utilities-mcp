@@ -1,20 +1,22 @@
-use crate::guardrails::{truncate_output, TruncateResult, validate_path_safety};
-use walkdir::WalkDir;
+use crate::errors::{CoreError, CoreResult};
+use crate::guardrails::{truncate_output, validate_path_safety, TruncateResult};
 use regex::Regex;
-use std::path::Path;
 use serde_json::json;
+use std::path::Path;
+use walkdir::WalkDir;
 
 /// Performs grep-like searches under a root directory or file within the output characters limit.
 pub fn search_text_with_limit(
     search_root_or_file: &str,
     query_string: &str,
     is_regex: Option<bool>,
-) -> Result<TruncateResult, String> {
+) -> CoreResult<TruncateResult> {
     validate_path_safety(search_root_or_file)?;
 
     let is_regex = is_regex.unwrap_or(false);
     let matcher: Box<dyn Fn(&str) -> bool> = if is_regex {
-        let re = Regex::new(query_string).map_err(|e| format!("Invalid regex: {}", e))?;
+        let re = Regex::new(query_string)
+            .map_err(|e| CoreError::Parsing(format!("Invalid regex: {}", e)))?;
         Box::new(move |s| re.is_match(s))
     } else {
         let q = query_string.to_string();
@@ -23,7 +25,10 @@ pub fn search_text_with_limit(
 
     let path = Path::new(search_root_or_file);
     if !path.exists() {
-        return Err(format!("Search root/file does not exist: {}", search_root_or_file));
+        return Err(CoreError::File(format!(
+            "Search root/file does not exist: {}",
+            search_root_or_file
+        )));
     }
 
     let mut matches = Vec::new();
@@ -62,17 +67,23 @@ pub fn search_file_by_name_or_type(
     search_root: Option<&str>,
     name_pattern: Option<&str>,
     file_type: Option<&str>,
-) -> Result<TruncateResult, String> {
+) -> CoreResult<TruncateResult> {
     let root_str = search_root.unwrap_or(".");
     validate_path_safety(root_str)?;
 
     let path = Path::new(root_str);
     if !path.exists() {
-        return Err(format!("Search root directory does not exist: {}", root_str));
+        return Err(CoreError::File(format!(
+            "Search root directory does not exist: {}",
+            root_str
+        )));
     }
 
     let name_regex = if let Some(pattern) = name_pattern {
-        Some(Regex::new(pattern).map_err(|e| format!("Invalid name pattern regex: {}", e))?)
+        Some(
+            Regex::new(pattern)
+                .map_err(|e| CoreError::Parsing(format!("Invalid name pattern regex: {}", e)))?,
+        )
     } else {
         None
     };
@@ -111,9 +122,9 @@ pub fn search_file_by_name_or_type(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::tempdir;
 
     #[test]
     fn test_search_text() {
@@ -125,7 +136,8 @@ mod tests {
         writeln!(file, "ordinary line").unwrap();
 
         std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "2000");
-        let res = search_text_with_limit(dir.path().to_str().unwrap(), "magic", Some(false)).unwrap();
+        let res =
+            search_text_with_limit(dir.path().to_str().unwrap(), "magic", Some(false)).unwrap();
         assert!(res.content.contains("magic keyword found"));
         assert!(!res.content.contains("ordinary line"));
     }
@@ -142,7 +154,8 @@ mod tests {
             Some(dir.path().to_str().unwrap()),
             Some(r"\.rs$"),
             Some("file"),
-        ).unwrap();
+        )
+        .unwrap();
         assert!(res.content.contains("target_file.rs"));
         assert!(!res.content.contains("ignore.txt"));
     }

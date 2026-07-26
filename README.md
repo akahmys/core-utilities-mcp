@@ -81,6 +81,8 @@ All destructive commands apply path safety validation before execution. Operatio
 14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
 15. `execute_command_in_sandbox`: Runs commands in a constrained sandbox environment.
 
+
+
 ---
 
 ## ⚡ Setup & Test

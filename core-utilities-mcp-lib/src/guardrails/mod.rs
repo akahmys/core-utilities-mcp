@@ -1,4 +1,5 @@
-use serde::{Serialize, Deserialize};
+use crate::errors::{CoreError, CoreResult};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TruncateResult {
@@ -9,20 +10,30 @@ pub struct TruncateResult {
 
 /// Validates target paths for filesystem mutations.
 /// Reject targets like `.`, `/`, `*`, `~`, `""`, or path patterns ending with `/*` or `/.*`.
-pub fn validate_path_safety(path: &str) -> Result<(), String> {
+pub fn validate_path_safety(path: &str) -> CoreResult<()> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
-        return Err("Path safety violation: path is empty".to_string());
+        return Err(CoreError::Guardrail("path is empty".to_string()));
     }
-    
+
     // Complete matches
     if trimmed == "." || trimmed == "/" || trimmed == "*" || trimmed == "~" {
-        return Err(format!("Path safety violation: dangerous path sequence '{}'", trimmed));
+        return Err(CoreError::Guardrail(format!(
+            "dangerous path sequence '{}'",
+            trimmed
+        )));
     }
 
     // Path pattern check: ending in /* or /.* (and also windows backslash style)
-    if trimmed.ends_with("/*") || trimmed.ends_with("/.*") || trimmed.ends_with("\\*") || trimmed.ends_with("\\.*") {
-        return Err(format!("Path safety violation: wildcard target pattern '{}'", trimmed));
+    if trimmed.ends_with("/*")
+        || trimmed.ends_with("/.*")
+        || trimmed.ends_with("\\*")
+        || trimmed.ends_with("\\.*")
+    {
+        return Err(CoreError::Guardrail(format!(
+            "wildcard target pattern '{}'",
+            trimmed
+        )));
     }
 
     Ok(())

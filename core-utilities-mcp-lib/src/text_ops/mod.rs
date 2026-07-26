@@ -1,21 +1,22 @@
-use crate::guardrails::{truncate_output, TruncateResult, validate_path_safety};
-use std::path::Path;
+use crate::errors::{CoreError, CoreResult};
+use crate::guardrails::{truncate_output, validate_path_safety, TruncateResult};
 use serde_json::Value;
+use std::path::Path;
 
 /// Reads file contents starting from `start_offset` and applies output limits.
 pub fn read_file_with_limit(
     path: &str,
     start_offset: Option<usize>,
     _smart_boundary: Option<bool>,
-) -> Result<TruncateResult, String> {
+) -> CoreResult<TruncateResult> {
     validate_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(format!("File not found: {}", path));
+        return Err(CoreError::File(format!("File not found: {}", path)));
     }
 
     let content = std::fs::read_to_string(path_buf)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+        .map_err(|e| CoreError::File(format!("Failed to read file: {}", e)))?;
 
     let offset = start_offset.unwrap_or(0);
     let skipped_content: String = content.chars().skip(offset).collect();
@@ -32,35 +33,42 @@ pub fn filter_and_sort_matrix_columns(
     path: &str,
     columns: Vec<String>,
     deduplicate: Option<bool>,
-) -> Result<TruncateResult, String> {
+) -> CoreResult<TruncateResult> {
     validate_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(format!("File not found: {}", path));
+        return Err(CoreError::File(format!("File not found: {}", path)));
     }
 
-    let file = std::fs::File::open(path_buf).map_err(|e| format!("Failed to open file: {}", e))?;
+    let file = std::fs::File::open(path_buf)
+        .map_err(|e| CoreError::File(format!("Failed to open file: {}", e)))?;
     // Support tab separation dynamically based on path
     let is_tsv = path.ends_with(".tsv");
     let mut reader = csv::ReaderBuilder::new()
         .delimiter(if is_tsv { b'\t' } else { b',' })
         .from_reader(file);
 
-    let headers = reader.headers().map_err(|e| format!("Failed to read CSV headers: {}", e))?.clone();
-    let col_indices: Vec<usize> = columns.iter()
-        .filter_map(|col_name| {
-            headers.iter().position(|h| h == col_name)
-        })
+    let headers = reader
+        .headers()
+        .map_err(|e| CoreError::Parsing(format!("Failed to read CSV headers: {}", e)))?
+        .clone();
+    let col_indices: Vec<usize> = columns
+        .iter()
+        .filter_map(|col_name| headers.iter().position(|h| h == col_name))
         .collect();
 
     if col_indices.is_empty() {
-        return Err("None of the specified columns were found in the CSV/TSV headers.".to_string());
+        return Err(CoreError::General(
+            "None of the specified columns were found in the CSV/TSV headers.".to_string(),
+        ));
     }
 
     let mut rows = Vec::new();
     for result in reader.records() {
-        let record = result.map_err(|e| format!("Failed to read CSV record: {}", e))?;
-        let filtered_row: Vec<String> = col_indices.iter()
+        let record =
+            result.map_err(|e| CoreError::Parsing(format!("Failed to read CSV record: {}", e)))?;
+        let filtered_row: Vec<String> = col_indices
+            .iter()
             .map(|&idx| record.get(idx).unwrap_or("").to_string())
             .collect();
         rows.push(filtered_row);
@@ -88,15 +96,15 @@ pub fn filter_and_sort_matrix_columns(
 }
 
 /// Agnostic regex skeleton parser that strips local implementation bodies to save token counts.
-pub fn extract_code_skeleton(path: &str) -> Result<TruncateResult, String> {
+pub fn extract_code_skeleton(path: &str) -> CoreResult<TruncateResult> {
     validate_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(format!("File not found: {}", path));
+        return Err(CoreError::File(format!("File not found: {}", path)));
     }
 
     let content = std::fs::read_to_string(path_buf)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+        .map_err(|e| CoreError::File(format!("Failed to read file: {}", e)))?;
 
     let mut skeleton = String::new();
     let re_keywords = regex::Regex::new(r"^(?i)\s*(class|def|fn|struct|enum|trait|impl|func|interface|type|public\s+class|private\s+class|pub\s+fn)\b")
@@ -120,7 +128,9 @@ pub fn extract_code_skeleton(path: &str) -> Result<TruncateResult, String> {
         }
 
         // Keep definitions or very shallow indent markers
-        if re_keywords.is_match(line) || (line.starts_with(|c: char| !c.is_whitespace()) && !trimmed.is_empty()) {
+        if re_keywords.is_match(line)
+            || (line.starts_with(|c: char| !c.is_whitespace()) && !trimmed.is_empty())
+        {
             // Strip brackets/braces from definition lines to keep skeleton compact
             let clean_line = line.split('{').next().unwrap_or(line).trim_end();
             skeleton.push_str(clean_line);
@@ -132,18 +142,18 @@ pub fn extract_code_skeleton(path: &str) -> Result<TruncateResult, String> {
 }
 
 /// Helper to parse dot-separated and indexed paths (e.g. data.users[0].id)
-pub fn query_json_by_path(path: &str, json_path: &str) -> Result<Value, String> {
+pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
     validate_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(format!("File not found: {}", path));
+        return Err(CoreError::File(format!("File not found: {}", path)));
     }
 
     let content = std::fs::read_to_string(path_buf)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+        .map_err(|e| CoreError::File(format!("Failed to read file: {}", e)))?;
 
     let json_data: Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+        .map_err(|e| CoreError::Parsing(format!("Failed to parse JSON: {}", e)))?;
 
     // Convert path like "data.users[0].id" to json pointer "/data/users/0/id"
     let mut pointer = String::new();
@@ -151,7 +161,11 @@ pub fn query_json_by_path(path: &str, json_path: &str) -> Result<Value, String> 
     for part in parts {
         if part.contains('[') && part.contains(']') {
             let base = part.split('[').next().unwrap_or("");
-            let index = part.split('[').nth(1).and_then(|idx| idx.split(']').next()).unwrap_or("");
+            let index = part
+                .split('[')
+                .nth(1)
+                .and_then(|idx| idx.split(']').next())
+                .unwrap_or("");
             if !base.is_empty() {
                 pointer.push('/');
                 pointer.push_str(base);
@@ -164,17 +178,18 @@ pub fn query_json_by_path(path: &str, json_path: &str) -> Result<Value, String> 
         }
     }
 
-    json_data.pointer(&pointer)
+    json_data
+        .pointer(&pointer)
         .cloned()
-        .ok_or_else(|| format!("Path '{}' not found in JSON object", json_path))
+        .ok_or_else(|| CoreError::General(format!("Path '{}' not found in JSON object", json_path)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::tempdir;
 
     #[test]
     fn test_read_file_within_limit() {
@@ -223,8 +238,9 @@ mod tests {
         let res = filter_and_sort_matrix_columns(
             file_path.to_str().unwrap(),
             vec!["name".to_string(), "id".to_string()],
-            Some(true)
-        ).unwrap();
+            Some(true),
+        )
+        .unwrap();
         assert!(res.content.contains("name,id"));
         assert!(res.content.contains("Alice,1"));
         assert!(res.content.contains("Bob,2"));
@@ -257,7 +273,11 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("data.json");
         let mut file = File::create(&file_path).unwrap();
-        writeln!(file, r#"{{"data": {{"users": [{{"id": 42, "name": "Alice"}}]}}}}"#).unwrap();
+        writeln!(
+            file,
+            r#"{{"data": {{"users": [{{"id": 42, "name": "Alice"}}]}}}}"#
+        )
+        .unwrap();
 
         let val = query_json_by_path(file_path.to_str().unwrap(), "data.users[0].id").unwrap();
         assert_eq!(val, serde_json::Value::from(42));
