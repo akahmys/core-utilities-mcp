@@ -11,14 +11,69 @@ fn test_get_system_context() {
 async fn test_execute_command_success() {
     let _lock = crate::guardrails::ENV_MUTEX.lock().await;
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "100");
-    let res = execute_command_in_sandbox("echo hello").await.unwrap();
+    let res = execute_command_in_sandbox("echo hello", None, None)
+        .await
+        .unwrap();
     assert_eq!(res["exit_code"], 0);
     assert!(res["stdout"].as_str().unwrap().contains("hello"));
 }
 
 #[tokio::test]
 async fn test_execute_command_timeout() {
-    // Sleep commands to test timeout
-    let res = execute_command_in_sandbox("sleep 10").await;
+    // A 1s timeout against a longer sleep should time out quickly rather
+    // than waiting out the default.
+    let res = execute_command_in_sandbox("sleep 5", None, Some(1)).await;
     assert!(res.is_err());
+}
+
+#[tokio::test]
+async fn test_execute_command_uses_explicit_working_directory() {
+    let _lock = crate::guardrails::ENV_MUTEX.lock().await;
+    std::env::remove_var("AI_WORKSPACE_ROOT");
+    let dir = tempfile::tempdir().unwrap();
+    let canonical = dir.path().canonicalize().unwrap();
+
+    let res = execute_command_in_sandbox("pwd", canonical.to_str(), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        res["stdout"].as_str().unwrap().trim(),
+        canonical.to_str().unwrap()
+    );
+}
+
+#[tokio::test]
+async fn test_execute_command_defaults_to_workspace_root() {
+    let _lock = crate::guardrails::ENV_MUTEX.lock().await;
+    let dir = tempfile::tempdir().unwrap();
+    let canonical = dir.path().canonicalize().unwrap();
+    std::env::set_var("AI_WORKSPACE_ROOT", &canonical);
+
+    let res = execute_command_in_sandbox("pwd", None, None).await.unwrap();
+    assert_eq!(
+        res["stdout"].as_str().unwrap().trim(),
+        canonical.to_str().unwrap()
+    );
+
+    std::env::remove_var("AI_WORKSPACE_ROOT");
+}
+
+#[test]
+fn test_resolve_timeout_defaults_and_clamps() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
+    std::env::remove_var("AI_COMMAND_TIMEOUT_SECONDS");
+    assert_eq!(
+        resolve_timeout(None),
+        Duration::from_secs(DEFAULT_TIMEOUT_SECS)
+    );
+    assert_eq!(resolve_timeout(Some(5)), Duration::from_secs(5));
+    assert_eq!(
+        resolve_timeout(Some(9999)),
+        Duration::from_secs(MAX_TIMEOUT_SECS)
+    );
+    assert_eq!(resolve_timeout(Some(0)), Duration::from_secs(1));
+
+    std::env::set_var("AI_COMMAND_TIMEOUT_SECONDS", "60");
+    assert_eq!(resolve_timeout(None), Duration::from_secs(60));
+    std::env::remove_var("AI_COMMAND_TIMEOUT_SECONDS");
 }

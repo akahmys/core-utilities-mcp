@@ -9,6 +9,49 @@ use sysinfo::{Disks, System};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
+/// Timeout applied when a call doesn't specify `timeout_seconds` and
+/// `AI_COMMAND_TIMEOUT_SECONDS` is unset.
+const DEFAULT_TIMEOUT_SECS: u64 = 30;
+
+/// Hard ceiling a requested timeout is clamped to, regardless of source.
+const MAX_TIMEOUT_SECS: u64 = 300;
+
+/// Resolves the wall-clock timeout for a command: an explicit per-call
+/// value wins, falling back to `AI_COMMAND_TIMEOUT_SECONDS`, then
+/// [`DEFAULT_TIMEOUT_SECS`]. Always clamped to `1..=`[`MAX_TIMEOUT_SECS`].
+fn resolve_timeout(requested: Option<u64>) -> Duration {
+    let env_default = std::env::var("AI_COMMAND_TIMEOUT_SECONDS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_TIMEOUT_SECS);
+    let secs = requested.unwrap_or(env_default).clamp(1, MAX_TIMEOUT_SECS);
+    Duration::from_secs(secs)
+}
+
+/// Builds the (unspawned) shell invocation for `command`, using `cmd /C` on
+/// Windows and `sh -c` elsewhere, applying `working_directory` if given.
+fn build_command(command: &str, working_directory: Option<&str>) -> Command {
+    #[cfg(target_family = "windows")]
+    let mut builder = {
+        let mut c = Command::new("cmd");
+        c.args(["/C", command]);
+        c
+    };
+
+    #[cfg(not(target_family = "windows"))]
+    let mut builder = {
+        let mut c = Command::new("sh");
+        c.args(["-c", command]);
+        c
+    };
+
+    if let Some(dir) = working_directory {
+        builder.current_dir(dir);
+    }
+    builder.stdout(Stdio::piped()).stderr(Stdio::piped());
+    builder
+}
+
 /// Aggregates OS name, hostname, CPU core count, total free disk space
 /// across all mounted disks, and the current process's user/group ID
 /// (Unix only; `"N/A"` elsewhere) into a single JSON object.
@@ -68,14 +111,22 @@ pub fn get_system_context() -> CoreResult<Value> {
 }
 
 /// Runs `command` in a shell (`sh -c` on Unix, `cmd /C` on Windows) with two
-/// safety constraints: a 5-second wall-clock timeout, and a hard kill if
-/// buffered stdout exceeds 4x the `AI_COMMAND_MAX_CHARACTERS` byte budget
-/// (default `8192`, so a 32KB safeguard). Returned `stdout` is further
-/// truncated to the configured character limit via
-/// [`truncate_output`](crate::guardrails::truncate_output). This does not
-/// impose CPU or memory limits, and does not restrict the command's
-/// filesystem or network access — callers requiring stronger isolation
-/// should run this behind an OS-level sandbox (container, VM, seccomp).
+/// safety constraints: a wall-clock timeout (`timeout_seconds`, falling back
+/// to `AI_COMMAND_TIMEOUT_SECONDS`, then 30s, always clamped to at most 5
+/// minutes), and a hard kill if buffered stdout exceeds 4x the
+/// `AI_COMMAND_MAX_CHARACTERS` byte budget (default `8192`, so a 32KB
+/// safeguard). Returned `stdout` is further truncated to the configured
+/// character limit via [`truncate_output`](crate::guardrails::truncate_output).
+///
+/// `working_directory`, if given, is used as-is (not path-validated); if
+/// omitted, `AI_WORKSPACE_ROOT` is used as the default when set, otherwise
+/// the server process's own current directory. Neither the command string
+/// nor the resolved working directory go through
+/// [`validate_path_safety`](crate::guardrails::validate_path_safety) — this
+/// function does not impose CPU or memory limits either, and does not
+/// restrict the command's filesystem or network access. Callers requiring
+/// stronger isolation should run this behind an OS-level sandbox (container,
+/// VM, seccomp).
 ///
 /// # Errors
 /// Returns [`CoreError::Process`] if the command cannot be spawned or its
@@ -88,30 +139,25 @@ pub fn get_system_context() -> CoreResult<Value> {
 /// use core_utilities_mcp_lib::sys_ops::execute_command_in_sandbox;
 ///
 /// # async fn run() -> Result<(), core_utilities_mcp_lib::CoreError> {
-/// let result = execute_command_in_sandbox("echo hello").await?;
+/// let result = execute_command_in_sandbox("cargo test", Some("/path/to/project"), Some(120)).await?;
 /// println!("{}", result["stdout"]);
 /// # Ok(())
 /// # }
 /// ```
-pub async fn execute_command_in_sandbox(command: &str) -> CoreResult<Value> {
+pub async fn execute_command_in_sandbox(
+    command: &str,
+    working_directory: Option<&str>,
+    timeout_seconds: Option<u64>,
+) -> CoreResult<Value> {
     let limit: usize = std::env::var("AI_COMMAND_MAX_CHARACTERS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(8192);
 
-    #[cfg(target_family = "windows")]
-    let mut child = Command::new("cmd")
-        .args(["/C", command])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| CoreError::Process(format!("Failed to spawn command: {}", e)))?;
+    let workspace_root = std::env::var("AI_WORKSPACE_ROOT").ok();
+    let cwd = working_directory.or(workspace_root.as_deref());
 
-    #[cfg(not(target_family = "windows"))]
-    let mut child = Command::new("sh")
-        .args(["-c", command])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+    let mut child = build_command(command, cwd)
         .spawn()
         .map_err(|e| CoreError::Process(format!("Failed to spawn command: {}", e)))?;
 
@@ -124,7 +170,7 @@ pub async fn execute_command_in_sandbox(command: &str) -> CoreResult<Value> {
         .take()
         .ok_or_else(|| CoreError::Process("Failed to open stderr pipe".to_string()))?;
 
-    let timeout_duration = Duration::from_secs(5);
+    let timeout_duration = resolve_timeout(timeout_seconds);
 
     // Futures to read output
     let mut stdout_buf = Vec::new();

@@ -62,7 +62,7 @@ All destructive commands apply path safety validation before execution. Operatio
 
 This is a mistake-prevention guard for an AI agent going off-script, not an adversarial security boundary — it does not resolve symlinks, and provides no protection for calls that bypass it entirely (e.g. `execute_command_in_sandbox`, which is not path-validated).
 
-**Optional workspace confinement (`AI_WORKSPACE_ROOT`)**: if set, every path-validated tool call is restricted to that directory (and its subdirectories) — anything outside it, including via `../` traversal, is rejected. Unset (the default), there is no such restriction.
+**Optional workspace confinement (`AI_WORKSPACE_ROOT`)**: if set, every path-validated tool call is restricted to that directory (and its subdirectories) — anything outside it, including via `../` traversal, is rejected. Unset (the default), there is no such restriction. It also becomes the default `working_directory` for `execute_command_in_sandbox` when the caller doesn't specify one.
 ```json
 "core-utilities-mcp": {
   "command": "/Users/akahmys/.cargo/bin/core-utilities-mcp",
@@ -70,6 +70,12 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
     "AI_WORKSPACE_ROOT": "/Users/akahmys/projects/rad"
   }
 }
+```
+
+### 4. Configurable Command Timeout (`AI_COMMAND_TIMEOUT_SECONDS`)
+`execute_command_in_sandbox` applies a wall-clock timeout to every command: an explicit per-call `timeout_seconds` argument wins, falling back to `AI_COMMAND_TIMEOUT_SECONDS` (default `30`), always clamped to at most `300` seconds.
+```bash
+AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 ```
 
 ---
@@ -96,7 +102,7 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
 
 ### System & Sandbox
 13. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
-14. `execute_command_in_sandbox`: Runs a shell command with a timeout and an output-size guard. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
+14. `execute_command_in_sandbox`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
 
 

@@ -110,6 +110,8 @@ struct QueryJsonArgs {
 #[derive(Debug, Deserialize)]
 struct ExecCmdArgs {
     command: String,
+    working_directory: Option<String>,
+    timeout_seconds: Option<u64>,
 }
 
 /// Initializes a `tracing` subscriber that writes structured logs to
@@ -439,11 +441,13 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     },
                     {
                         "name": "execute_command_in_sandbox",
-                        "description": "Runs a shell command with a wall-clock timeout and an output-size guard. Provides no filesystem, network, CPU, or memory isolation from the host, and is not subject to path-safety validation.",
+                        "description": "Runs a shell command with a wall-clock timeout and an output-size guard. Provides no filesystem, network, CPU, or memory isolation from the host, and neither the command nor working_directory are subject to path-safety validation.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
-                                "command": { "type": "string" }
+                                "command": { "type": "string" },
+                                "working_directory": { "type": "string", "description": "Directory to run the command in. Defaults to AI_WORKSPACE_ROOT if set, otherwise the server's own working directory." },
+                                "timeout_seconds": { "type": "integer", "description": "Wall-clock timeout in seconds (default 30, capped at 300)." }
                             },
                             "required": ["command"]
                         }
@@ -628,8 +632,16 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                         serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
                             .unwrap_or(ExecCmdArgs {
                                 command: String::new(),
+                                working_directory: None,
+                                timeout_seconds: None,
                             });
-                    match execute_command_in_sandbox(&args.command).await {
+                    match execute_command_in_sandbox(
+                        &args.command,
+                        args.working_directory.as_deref(),
+                        args.timeout_seconds,
+                    )
+                    .await
+                    {
                         Ok(v) => Ok(v.to_string()),
                         Err(e) => Err(e),
                     }
