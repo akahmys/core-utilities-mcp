@@ -74,7 +74,7 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
 
 ---
 
-## 🛠️ The 15 Core Command Specification
+## 🛠️ The 14 Core Command Specification
 
 ### File Operations & Directory Management
 1. `list_directory_contents` (ls): Lists contents divided into files, directories, and links.
@@ -92,12 +92,11 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
 
 ### Structural Data Formatting
 11. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
-12. `extract_code_skeleton`: Uses regex-based heuristics to extract class/function/definition lines, stripping bodies to save tokens.
-13. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
+12. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
 
 ### System & Sandbox
-14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
-15. `execute_command_in_sandbox`: Runs a shell command with a timeout and an output-size guard. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
+13. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
+14. `execute_command_in_sandbox`: Runs a shell command with a timeout and an output-size guard. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
 
 

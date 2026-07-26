@@ -6,7 +6,7 @@ use core_utilities_mcp_lib::file_ops::{
 use core_utilities_mcp_lib::search_ops::{search_file_by_name_or_type, search_text_with_limit};
 use core_utilities_mcp_lib::sys_ops::{execute_command_in_sandbox, get_system_context};
 use core_utilities_mcp_lib::text_ops::{
-    extract_code_skeleton, filter_and_sort_matrix_columns, query_json_by_path, read_file_with_limit,
+    filter_and_sort_matrix_columns, query_json_by_path, read_file_with_limit,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -418,17 +418,6 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                         }
                     },
                     {
-                        "name": "extract_code_skeleton",
-                        "description": "Strips local block execution logic and functions to yield a skeleton representation of classes, functions, and definitions.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string" }
-                            },
-                            "required": ["path"]
-                        }
-                    },
-                    {
                         "name": "query_json_by_path",
                         "description": "Queries a JSON file using a path query syntax (e.g. data.users[0].id).",
                         "inputSchema": {
@@ -622,15 +611,6 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                                 deduplicate: None,
                             });
                     filter_and_sort_matrix_columns(&args.path, args.columns, args.deduplicate)
-                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
-                }
-                "extract_code_skeleton" => {
-                    let args: PathArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(PathArgs {
-                                path: String::new(),
-                            });
-                    extract_code_skeleton(&args.path)
                         .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
                 }
                 "query_json_by_path" => {

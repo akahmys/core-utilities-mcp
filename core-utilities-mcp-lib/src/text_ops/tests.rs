@@ -59,28 +59,6 @@ fn test_filter_and_sort_matrix_columns() {
 }
 
 #[test]
-fn test_extract_code_skeleton() {
-    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
-    let dir = tempdir().unwrap();
-    let file_path = dir.path().join("code.rs");
-    let mut file = File::create(&file_path).unwrap();
-    writeln!(file, "pub struct User {{").unwrap();
-    writeln!(file, "    pub name: String,").unwrap();
-    writeln!(file, "}}").unwrap();
-    writeln!(file, "impl User {{").unwrap();
-    writeln!(file, "    pub fn new() -> Self {{").unwrap();
-    writeln!(file, "        User {{ name: String::new() }}").unwrap();
-    writeln!(file, "    }}").unwrap();
-    writeln!(file, "}}").unwrap();
-
-    std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "1000");
-    let res = extract_code_skeleton(file_path.to_str().unwrap()).unwrap();
-    assert!(res.content.contains("pub struct User"));
-    assert!(res.content.contains("impl User"));
-    assert!(!res.content.contains("pub name: String"));
-}
-
-#[test]
 fn test_query_json_by_path() {
     let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();

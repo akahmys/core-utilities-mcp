@@ -74,7 +74,7 @@ impl Drop for TestServer {
 }
 
 #[test]
-fn initialize_and_tools_list_report_fifteen_tools() {
+fn initialize_and_tools_list_report_fourteen_tools() {
     let mut server = TestServer::spawn();
 
     let init = server.call(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize"}));
@@ -82,7 +82,7 @@ fn initialize_and_tools_list_report_fifteen_tools() {
 
     let list = server.call(&json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}));
     let tools = list["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 15);
+    assert_eq!(tools.len(), 14);
 }
 
 #[test]
