@@ -10,7 +10,7 @@ use core_utilities_mcp_lib::text_ops::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{self, BufRead};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{debug, info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -146,50 +146,111 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    run_server().await
+}
+
+/// Reads JSON-RPC requests from stdin one line at a time and dispatches
+/// them, until stdin closes, a read error occurs, or a shutdown signal
+/// (`Ctrl+C`, or `SIGTERM` on Unix) is received. Async stdin reading lets
+/// the shutdown signal interrupt a blocked read, instead of waiting for the
+/// next line to arrive before the process can exit.
+async fn run_server() -> anyhow::Result<()> {
     info!("core-utilities-mcp starting; awaiting JSON-RPC requests on stdin");
 
-    let stdin = io::stdin();
-    let reader = stdin.lock();
+    let mut lines = BufReader::new(tokio::io::stdin()).lines();
 
-    for line in reader.lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => break,
-        };
-
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        let req: JsonRpcRequest = match serde_json::from_str(&line) {
-            Ok(r) => r,
-            Err(e) => {
-                warn!(error = %e, "failed to parse JSON-RPC request");
-                let err_resp = JsonRpcResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: None,
-                    result: None,
-                    error: Some(JsonRpcError {
-                        code: -32700,
-                        message: format!("Parse error: {}", e),
-                        data: None,
-                    }),
-                };
-                println!("{}", serde_json::to_string(&err_resp)?);
-                continue;
+    loop {
+        tokio::select! {
+            biased;
+            _ = shutdown_signal() => {
+                info!("shutdown signal received; core-utilities-mcp shutting down");
+                // `tokio::io::stdin()` reads via a dedicated blocking OS
+                // thread; if it is still parked in a blocking read (the
+                // normal state for a long-lived MCP client connection), the
+                // Tokio runtime's Drop would hang forever waiting for it.
+                // Exit immediately rather than unwinding back through main.
+                std::process::exit(0);
             }
-        };
-
-        debug!(method = %req.method, "received JSON-RPC request");
-        let is_notification = req.id.is_none();
-        let response = handle_request(req).await;
-
-        if !is_notification {
-            println!("{}", serde_json::to_string(&response)?);
+            line = lines.next_line() => {
+                match line {
+                    Ok(Some(line)) => process_line(&line).await?,
+                    Ok(None) => {
+                        info!("stdin closed; core-utilities-mcp shutting down");
+                        break;
+                    }
+                    Err(e) => {
+                        warn!(error = %e, "error reading stdin; core-utilities-mcp shutting down");
+                        break;
+                    }
+                }
+            }
         }
     }
 
-    info!("stdin closed; core-utilities-mcp shutting down");
+    Ok(())
+}
+
+/// Resolves once a `Ctrl+C` (or, on Unix, a `SIGTERM`) is received, letting
+/// callers race it against other work via `tokio::select!` for graceful
+/// shutdown.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        use tokio::signal::unix::{signal, SignalKind};
+        if let Ok(mut sig) = signal(SignalKind::terminate()) {
+            sig.recv().await;
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+}
+
+/// Parses and dispatches a single JSON-RPC request line, printing the
+/// response to stdout unless the request was a notification (no `id`).
+/// Malformed input yields a JSON-RPC parse-error response rather than
+/// aborting the server.
+async fn process_line(line: &str) -> anyhow::Result<()> {
+    if line.trim().is_empty() {
+        return Ok(());
+    }
+
+    let req: JsonRpcRequest = match serde_json::from_str(line) {
+        Ok(r) => r,
+        Err(e) => {
+            warn!(error = %e, "failed to parse JSON-RPC request");
+            let err_resp = JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: None,
+                result: None,
+                error: Some(JsonRpcError {
+                    code: -32700,
+                    message: format!("Parse error: {}", e),
+                    data: None,
+                }),
+            };
+            println!("{}", serde_json::to_string(&err_resp)?);
+            return Ok(());
+        }
+    };
+
+    debug!(method = %req.method, "received JSON-RPC request");
+    let is_notification = req.id.is_none();
+    let response = handle_request(req).await;
+
+    if !is_notification {
+        println!("{}", serde_json::to_string(&response)?);
+    }
+
     Ok(())
 }
 

@@ -30,7 +30,7 @@
 
 ### Phase 3: Server Maturity (In Progress)
 *   [x] **AWU 5.1: Integrate Structured Logging** (tracing)
-*   [ ] **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown)
+*   [x] **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown)
 *   [ ] **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC)
 
 ### Phase 4: Quality Assurance & Automation (Planned)
@@ -60,9 +60,9 @@
 | **4.2** | **Enhance Guardrails & Safety** | `[✅] Completed` | `validate_path_safety` now also rejects NUL-byte paths and exact (case-insensitive) matches against a deny-list of critical system directories (`/etc`, `/bin`, `/sbin`, `/usr`, `/boot`, `/dev`, `/proc`, `/sys`, `/root`, `/System`, `/Library`, `C:\Windows`, `C:\Program Files`); subpaths remain permitted. Corrected `execute_command_in_sandbox` docs to no longer claim an enforced memory limit (only timeout + output-size kill switch exist). README updated. |
 | **4.3** | **Documentation & API Design** | `[✅] Completed` | Added crate-level (`//!`) and per-module doc comments across `guardrails`, `file_ops`, `search_ops`, `text_ops`, `sys_ops`, each with `# Errors` and `# Examples` sections. `cargo test --doc` grew from 0 to 17 passing doctests. |
 | **5.1** | **Integrate Structured Logging** | `[✅] Completed` | Added `tracing`/`tracing-subscriber` to `core-utilities-mcp`. Logs (request method, tool name, `error_type` on failure, startup/shutdown) go to stderr only, gated by `RUST_LOG` (default `info`); stdout remains pure JSON-RPC. Verified via manual stdout/stderr separation test. README documents `RUST_LOG`. |
+| **5.2** | **Refine JSON-RPC Loop** | `[✅] Completed` | Switched stdin reading to async (`tokio::io::stdin` + `AsyncBufReadExt`) so a `Ctrl+C`/`SIGTERM` (`shutdown_signal()`) can interrupt a blocked read via `tokio::select!`. Discovered and fixed a real hang: since `tokio::io::stdin()` reads via a blocking OS thread, returning normally from `main` after a signal made the implicit `Runtime` Drop wait forever for that thread (reproduced with a FIFO held open, simulating a live MCP client connection) — fixed via `std::process::exit(0)` on the signal path. Verified: SIGTERM now exits in ~100ms even mid-read; stdin-EOF and normal request/response flows unaffected (21 unit + 17 doctests still pass). |
 
 ---
 
 ## 🚀 Next Steps
-1. **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown).
-2. **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC).
+1. **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC).
