@@ -10,7 +10,7 @@
 ### Phase 2: Full Tool Suite & MCP Server
 *   [x] **AWU 2.1: Implement MCP wrapper and tool definitions**
 *   [x] **AWU 2.2: Implement remaining core uutils/coreutils tools**
-*   [x] **AWU 2.3: Integrate Rollback Manager and Execution Sandbox**
+*   [x] **AWU 2.3: Execution Sandbox** (~~Rollback Manager~~ — see correction below)
 *   [x] **AWU 2.4: Reinstall renamed mcp-uutils binary**
 *   [x] **AWU 2.5: Rename project to core-utilities-mcp**
 
@@ -52,7 +52,7 @@
 | 1.3 | Safe Delete and Read File with Limit | `[✅] Completed` | Implemented delete_file_or_directory and read_file_with_limit. |
 | 2.1 | MCP Server integration | `[✅] Completed` | Integrated all tools into JSON-RPC schema. |
 | 2.2 | Full Tool Suite | `[✅] Completed` | Implemented all 14 core tools. |
-| 2.3 | Rollback / Sandbox Integration | `[✅] Completed` | Sandbox runner with stdout guard integrated. |
+| 2.3 | Rollback / Sandbox Integration | `[⚠️] Corrected` | Original entry claimed a "Rollback Manager" was completed; no such code (backup-before-delete, undo log) has ever existed in the repo — only the sandbox runner with stdout guard (`execute_command_in_sandbox`) was actually built. Surfaced during the 2026-07-27 design review; the user decided a rollback manager is not needed, so this will not be implemented. Entry corrected rather than deleted, per this project's own history-integrity rule. |
 | 2.4 | Reinstall renamed mcp-uutils binary | `[✅] Completed` | Successfully reinstalled mcp-uutils to cargo bin. |
 | 2.5 | Rename project to core-utilities-mcp | `[✅] Completed` | Successfully renamed directories, workspace crates (`core-utilities-mcp` & `core-utilities-mcp-lib`), Rust imports, binary output, license script, and all documentation. Installed binary to `~/.cargo/bin/core-utilities-mcp`. |
 | 3.0 | Synthesize Technical Audit & Refactoring Plan | `[✅] Completed` | Plan generated and added to roadmap. |
@@ -75,6 +75,5 @@
 ---
 
 ## 🚀 Next Steps
-All planned roadmap phases (1–5) are now complete. Remaining open items (not yet AWUs):
+All planned roadmap phases (1–5) are now complete. Remaining open item (not yet an AWU):
 1. `core-utilities-mcp-lib/src/file_ops/mod.rs` (374 lines) still exceeds the 300-line CODING.md limit purely from doc comments + logic; consider splitting into smaller per-operation files if this becomes a recurring audit finding.
-2. `PLANS.md`'s AWU 2.3 entry claims a "Rollback Manager" was implemented; no such code exists anywhere in the repo. This wasn't corrected as part of Phase 5 since it wasn't part of what was asked — flagging here so it isn't mistaken for current, verified state.
