@@ -7,12 +7,25 @@ Traditional UNIX-style command-line interfaces, designed for human interaction a
 
 ---
 
+## 🎯 Threat Model & Scope
+
+`core-utilities-mcp` is built for a single trusted user running a single agent against a known local directory (e.g. `~/projects/rad`) — it is not a multi-tenant service, and it is not designed to withstand an adversarial or compromised caller.
+
+**What it defends against**: an AI agent going off-script — a hallucinated path, an overly broad `rm`/`mv` target, an edit landing outside the intended project. This is *mistake prevention*, not a security boundary.
+
+**What it does not defend against**: a determined or maliciously-instructed caller. Guardrails do not resolve symlinks, and — critically — `execute_command_in_sandbox` is not path-validated at all; anything routed through it bypasses every other guardrail in this crate entirely (see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command_in_sandbox) below). If you need isolation from an untrusted or adversarial caller, wrap the whole process in an OS-level boundary (container, VM, restricted user) — this crate does not attempt to provide one itself.
+
+Every design decision below should be read against this model: invest in guarding against realistic agent mistakes in this single-user, local context; don't build security theater for threats this project doesn't actually face.
+
+---
+
 ## 📐 Design Philosophy
 
 1. **Semantic Clarity (Intent-Based)**: Commands are named based on the intent of the operation.
 2. **Token Defense (Context Efficiency)**: Enforces smart pagination and truncation at the native layer to conserve context tokens.
 3. **Deterministic Safety (Water-Edge Defense)**: Mechanically blocks dangerous paths (`.`, `/`, `*`, `~`, `""`, etc.) before executing destructive filesystem actions.
 4. **Zero-Process Library Execution**: Functions are separated into a pure Rust crate, eliminating process spawning overhead and allowing direct links.
+5. **Scope Discipline (Uniformity Litmus Test)**: A tool belongs in this crate only if it operates deterministically and uniformly regardless of content — true to the spirit of standard UNIX utilities. Anything that would need open-ended, format- or language-specific intelligence to be *correct* (e.g. a real per-language code-structure parser) doesn't belong here, no matter how useful it might be — that's a different kind of tool. (`extract_code_skeleton` was removed for exactly this reason.)
 
 ---
 
@@ -50,7 +63,14 @@ A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC 
 ## 🛡️ Key Safety Systems
 
 ### Water-Edge Path Defense
-Destructive operations validate target paths string-by-string. An attempt to modify or delete root `/`, working directory `.`, home `~`, empty values `""`, or wildcard patterns (`/*`, `/.*`) is blocked dynamically.
+Destructive operations validate target paths string-by-string. An attempt to modify or delete root `/`, working directory `.`, home `~`, empty values `""`, or wildcard patterns (`/*`, `/.*`) is blocked dynamically, alongside a fixed deny-list of critical system directories (`/etc`, `/usr`, `/bin`, `C:\Windows`, etc.) — subpaths beneath them remain permitted.
+
+**Optional workspace confinement**: setting `AI_WORKSPACE_ROOT` restricts every path-validated call to that directory (and its subdirectories); anything outside it, including via `../` traversal, is rejected. Off by default. As with everything else here, this is a mistake-prevention guard, not an adversarial boundary — see [Threat Model & Scope](#-threat-model--scope).
+
+### The Shell Escape Hatch (`execute_command_in_sandbox`)
+Modeled after the bash tool found in coding-agent toolkits, this runs an arbitrary shell command with a wall-clock timeout and an output-size guard — nothing more. It is **not** path-validated, **not** confined by `AI_WORKSPACE_ROOT`, and provides no filesystem, network, CPU, or memory isolation from the host.
+
+This is a deliberate design choice, not an oversight: without unrestricted shell access, an agent's practical capability collapses — this tool exists precisely because the structured, deterministic tools above it can't cover everything. Rather than fighting that by trying to sandbox it (disproportionate for the single-user, local, trusted context this crate targets), the design leans into it: invest in making it maximally *useful* (configurable timeouts, working-directory support) rather than pretending to make it safe, and state its limits honestly everywhere it's described.
 
 ### Smart Output Truncation
 Prevents LLM token overflow by reading `AI_COMMAND_MAX_CHARACTERS` (default: `8192`). 
