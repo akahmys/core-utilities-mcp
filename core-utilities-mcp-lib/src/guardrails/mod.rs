@@ -1,9 +1,11 @@
 //! Mechanical safety boundaries shared by every operation in this crate:
-//! path safety validation (rejecting catastrophic mutation targets) and
-//! output truncation (keeping tool responses within an AI-friendly size).
+//! path safety validation (rejecting catastrophic mutation targets and,
+//! optionally, anything outside a configured workspace) and output
+//! truncation (keeping tool responses within an AI-friendly size).
 
 use crate::errors::{CoreError, CoreResult};
 use serde::{Deserialize, Serialize};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TruncateResult {
@@ -38,6 +40,67 @@ fn is_critical_system_dir(trimmed: &str) -> bool {
     CRITICAL_SYSTEM_DIRS.contains(&normalized.as_str())
 }
 
+/// Collapses `.` and `..` components of an absolute path lexically (no
+/// filesystem access), so a target that does not exist yet — a new file, a
+/// move/copy destination, a not-yet-created `mkdir -p` chain — can still be
+/// checked against a workspace root.
+fn lexically_normalize(path: &Path) -> PathBuf {
+    let mut stack: Vec<Component> = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => match stack.last() {
+                Some(Component::Normal(_)) => {
+                    stack.pop();
+                }
+                Some(Component::RootDir) | Some(Component::Prefix(_)) => {}
+                _ => stack.push(component),
+            },
+            other => stack.push(other),
+        }
+    }
+    stack.iter().collect()
+}
+
+/// Resolves `path` to an absolute, lexically-normalized form relative to the
+/// current working directory, without requiring it to exist.
+fn resolve_absolute(path: &str) -> CoreResult<PathBuf> {
+    let candidate = Path::new(path);
+    let absolute = if candidate.is_absolute() {
+        candidate.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| CoreError::Guardrail(format!("failed to resolve current directory: {e}")))?
+            .join(candidate)
+    };
+    Ok(lexically_normalize(&absolute))
+}
+
+/// When `AI_WORKSPACE_ROOT` is set, rejects any path that resolves outside
+/// it. Confinement is opt-in and off by default: with the variable unset,
+/// this is a no-op, preserving prior behavior for callers that don't set it.
+fn check_workspace_root(path: &str) -> CoreResult<()> {
+    let Ok(root_str) = std::env::var("AI_WORKSPACE_ROOT") else {
+        return Ok(());
+    };
+
+    let root = std::fs::canonicalize(&root_str).map_err(|e| {
+        CoreError::Guardrail(format!(
+            "AI_WORKSPACE_ROOT '{root_str}' is not a valid directory: {e}"
+        ))
+    })?;
+
+    let resolved = resolve_absolute(path)?;
+    if !resolved.starts_with(&root) {
+        return Err(CoreError::Guardrail(format!(
+            "path '{path}' is outside the configured workspace root '{}'",
+            root.display()
+        )));
+    }
+
+    Ok(())
+}
+
 /// Validates a target path before it is used in a filesystem mutation
 /// (delete, move, copy destination, mkdir, or edit).
 ///
@@ -48,6 +111,13 @@ fn is_critical_system_dir(trimmed: &str) -> bool {
 /// - exact matches (case-insensitive, ignoring trailing separators) against a
 ///   fixed deny-list of critical system directories (e.g. `/etc`, `/usr`,
 ///   `C:\Windows`); subpaths beneath these directories are still permitted
+/// - anything outside `AI_WORKSPACE_ROOT`, if that environment variable is
+///   set (confinement is opt-in; unset means no workspace restriction)
+///
+/// This is a mistake-prevention guard against an AI agent going off-script,
+/// not an adversarial security boundary: it does not resolve symlinks in the
+/// path being checked, and provides no protection against a command that
+/// bypasses this function entirely (e.g. a raw shell command).
 ///
 /// # Examples
 ///
@@ -58,6 +128,14 @@ fn is_critical_system_dir(trimmed: &str) -> bool {
 /// assert!(validate_path_safety("/").is_err());
 /// assert!(validate_path_safety("/etc").is_err());
 /// assert!(validate_path_safety("/etc/hosts").is_ok());
+/// ```
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::guardrails::validate_path_safety;
+///
+/// std::env::set_var("AI_WORKSPACE_ROOT", "/Users/me/projects/rad");
+/// assert!(validate_path_safety("/Users/me/projects/rad/notes.md").is_ok());
+/// assert!(validate_path_safety("/Users/me/.ssh/id_ed25519").is_err());
 /// ```
 pub fn validate_path_safety(path: &str) -> CoreResult<()> {
     let trimmed = path.trim();
@@ -95,6 +173,8 @@ pub fn validate_path_safety(path: &str) -> CoreResult<()> {
             trimmed
         )));
     }
+
+    check_workspace_root(trimmed)?;
 
     Ok(())
 }

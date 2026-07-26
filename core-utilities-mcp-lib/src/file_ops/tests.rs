@@ -4,6 +4,7 @@ use tempfile::tempdir;
 
 #[test]
 fn test_delete_file_success() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test_delete.txt");
     File::create(&file_path).unwrap();
@@ -14,6 +15,7 @@ fn test_delete_file_success() {
 
 #[test]
 fn test_list_directory_contents() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     File::create(dir.path().join("file.txt")).unwrap();
     std::fs::create_dir(dir.path().join("subdir")).unwrap();
@@ -30,6 +32,7 @@ fn test_list_directory_contents() {
 
 #[test]
 fn test_get_file_metadata() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("file.txt");
     File::create(&file_path).unwrap();
@@ -42,6 +45,7 @@ fn test_get_file_metadata() {
 
 #[test]
 fn test_copy_move_create_dir() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let src_dir = dir.path().join("src_dir");
     let dest_dir = dir.path().join("dest_dir");
@@ -63,6 +67,7 @@ fn test_copy_move_create_dir() {
 
 #[test]
 fn test_edit_file_content_success() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test_edit.txt");
     std::fs::write(&file_path, b"line 1\nline 2\nline 3\nline 4").unwrap();
@@ -87,6 +92,7 @@ fn test_edit_file_content_success() {
 
 #[test]
 fn test_operations_on_nonexistent_targets_return_file_errors() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let missing = dir.path().join("does_not_exist.txt");
     let missing_str = missing.to_str().unwrap();

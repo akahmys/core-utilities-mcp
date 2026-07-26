@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn test_path_safety() {
+    let _lock = ENV_MUTEX.blocking_lock();
     assert!(validate_path_safety("src/lib.rs").is_ok());
     assert!(validate_path_safety("").is_err());
     assert!(validate_path_safety(".").is_err());
@@ -15,6 +16,7 @@ fn test_path_safety() {
 
 #[test]
 fn test_critical_system_dirs_rejected() {
+    let _lock = ENV_MUTEX.blocking_lock();
     assert!(validate_path_safety("/etc").is_err());
     assert!(validate_path_safety("/etc/").is_err());
     assert!(validate_path_safety("/ETC").is_err());
@@ -27,7 +29,48 @@ fn test_critical_system_dirs_rejected() {
 
 #[test]
 fn test_nul_byte_rejected() {
+    let _lock = ENV_MUTEX.blocking_lock();
     assert!(validate_path_safety("path/with\0null").is_err());
+}
+
+#[test]
+fn test_workspace_root_confinement() {
+    let _lock = ENV_MUTEX.blocking_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    std::env::set_var("AI_WORKSPACE_ROOT", &root);
+
+    let inside = root.join("inside.txt");
+    assert!(validate_path_safety(inside.to_str().unwrap()).is_ok());
+    assert!(validate_path_safety("/etc/hosts").is_err());
+    assert!(validate_path_safety("relative/inside/workspace.txt").is_err());
+
+    std::env::remove_var("AI_WORKSPACE_ROOT");
+}
+
+#[test]
+fn test_workspace_root_blocks_parent_traversal() {
+    let _lock = ENV_MUTEX.blocking_lock();
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    std::fs::create_dir(root.join("subdir")).unwrap();
+    std::env::set_var("AI_WORKSPACE_ROOT", &root);
+
+    let escaping = root
+        .join("subdir")
+        .join("..")
+        .join("..")
+        .join("outside.txt");
+    assert!(validate_path_safety(escaping.to_str().unwrap()).is_err());
+
+    std::env::remove_var("AI_WORKSPACE_ROOT");
+}
+
+#[test]
+fn test_workspace_root_unset_means_unrestricted() {
+    let _lock = ENV_MUTEX.blocking_lock();
+    std::env::remove_var("AI_WORKSPACE_ROOT");
+    assert!(validate_path_safety("/any/path/at/all").is_ok());
 }
 
 #[test]

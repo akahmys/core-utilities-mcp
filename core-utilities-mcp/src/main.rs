@@ -450,7 +450,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     },
                     {
                         "name": "execute_command_in_sandbox",
-                        "description": "Runs standard shell commands in a resource-capped environment with stdout line guards.",
+                        "description": "Runs a shell command with a wall-clock timeout and an output-size guard. Provides no filesystem, network, CPU, or memory isolation from the host, and is not subject to path-safety validation.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

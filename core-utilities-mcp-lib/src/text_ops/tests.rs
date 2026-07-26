@@ -82,6 +82,7 @@ fn test_extract_code_skeleton() {
 
 #[test]
 fn test_query_json_by_path() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("data.json");
     let mut file = File::create(&file_path).unwrap();
@@ -117,6 +118,7 @@ fn test_filter_and_sort_matrix_columns_no_matching_columns() {
 
 #[test]
 fn test_query_json_by_path_missing_path_returns_general_error() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("data.json");
     let mut file = File::create(&file_path).unwrap();
@@ -130,6 +132,7 @@ fn test_query_json_by_path_missing_path_returns_general_error() {
 
 #[test]
 fn test_query_json_by_path_invalid_json_returns_parsing_error() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("bad.json");
     std::fs::write(&file_path, b"not json").unwrap();

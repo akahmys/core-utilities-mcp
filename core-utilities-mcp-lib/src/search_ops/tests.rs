@@ -38,6 +38,7 @@ fn test_search_file_by_name() {
 
 #[test]
 fn test_invalid_regex_returns_parsing_error() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();
 
     assert!(matches!(
@@ -52,6 +53,7 @@ fn test_invalid_regex_returns_parsing_error() {
 
 #[test]
 fn test_nonexistent_search_root_returns_file_error() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     assert!(matches!(
         search_text_with_limit("/does/not/exist", "query", None),
         Err(CoreError::File(_))

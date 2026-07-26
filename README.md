@@ -60,6 +60,18 @@ RUST_LOG=debug core-utilities-mcp
 ### 3. Path Safety Validation (`rm -rf` Water-Edge Defense)
 All destructive commands apply path safety validation before execution. Operations on dangerous targets such as `.`, `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
 
+This is a mistake-prevention guard for an AI agent going off-script, not an adversarial security boundary — it does not resolve symlinks, and provides no protection for calls that bypass it entirely (e.g. `execute_command_in_sandbox`, which is not path-validated).
+
+**Optional workspace confinement (`AI_WORKSPACE_ROOT`)**: if set, every path-validated tool call is restricted to that directory (and its subdirectories) — anything outside it, including via `../` traversal, is rejected. Unset (the default), there is no such restriction.
+```json
+"core-utilities-mcp": {
+  "command": "/Users/akahmys/.cargo/bin/core-utilities-mcp",
+  "env": {
+    "AI_WORKSPACE_ROOT": "/Users/akahmys/projects/rad"
+  }
+}
+```
+
 ---
 
 ## 🛠️ The 15 Core Command Specification
@@ -80,12 +92,12 @@ All destructive commands apply path safety validation before execution. Operatio
 
 ### Structural Data Formatting
 11. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
-12. `extract_code_skeleton`: Uses tree-sitter or regex parses to extract class/function structures, saving ~90% of tokens.
+12. `extract_code_skeleton`: Uses regex-based heuristics to extract class/function/definition lines, stripping bodies to save tokens.
 13. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
 
 ### System & Sandbox
 14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
-15. `execute_command_in_sandbox`: Runs commands in a constrained sandbox environment.
+15. `execute_command_in_sandbox`: Runs a shell command with a timeout and an output-size guard. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
 
 
