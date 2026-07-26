@@ -23,10 +23,10 @@
 *   [x] **AWU 3.2: Apply Standard Formatting** (cargo fmt)
 *   [x] **AWU 3.3: Dependency Audit** (cargo audit - *Skipped: tool not in environment*)
 
-### Phase 2: Library Robustness (In Progress)
+### Phase 2: Library Robustness (Completed)
 *   [x] **AWU 4.1: Implement Structured Error Handling** (thiserror)
-*   [ ] **AWU 4.2: Enhance Guardrails & Safety**
-*   [ ] **AWU 4.3: Documentation & API Design** (doc comments & examples)
+*   [x] **AWU 4.2: Enhance Guardrails & Safety**
+*   [x] **AWU 4.3: Documentation & API Design** (doc comments & examples)
 
 ### Phase 3: Server Maturity (Planned)
 *   [ ] **AWU 5.1: Integrate Structured Logging** (tracing)
@@ -57,9 +57,12 @@
 | **3.3** | **Dependency Audit** | `[✅] Completed` | *Skipped: tool not in environment.* |
 | **4.1** | **Implement Structured Error Handling** | `[✅] Completed` | Added `errors.rs` with `thiserror`-based `CoreError`/`CoreResult`. Migrated `file_ops`, `guardrails`, `search_ops`, `text_ops`, and `sys_ops` off `Result<_, String>`. |
 | **4.4** | **Refactor `tools/call` Error Handling** | `[✅] Completed` | All `tools/call` arms now return `Result<String, CoreError>`; error responses include `error_type` from `CoreError::category()`. Verified via manual JSON-RPC smoke test and `cargo test --workspace` (19 passed). |
+| **4.2** | **Enhance Guardrails & Safety** | `[✅] Completed` | `validate_path_safety` now also rejects NUL-byte paths and exact (case-insensitive) matches against a deny-list of critical system directories (`/etc`, `/bin`, `/sbin`, `/usr`, `/boot`, `/dev`, `/proc`, `/sys`, `/root`, `/System`, `/Library`, `C:\Windows`, `C:\Program Files`); subpaths remain permitted. Corrected `execute_command_in_sandbox` docs to no longer claim an enforced memory limit (only timeout + output-size kill switch exist). README updated. |
+| **4.3** | **Documentation & API Design** | `[✅] Completed` | Added crate-level (`//!`) and per-module doc comments across `guardrails`, `file_ops`, `search_ops`, `text_ops`, `sys_ops`, each with `# Errors` and `# Examples` sections. `cargo test --doc` grew from 0 to 17 passing doctests. |
 
 ---
 
 ## 🚀 Next Steps
-1. **AWU 4.2: Enhance Guardrails & Safety.**
-2. **AWU 4.3: Documentation & API Design** (doc comments & examples).
+1. **AWU 5.1: Integrate Structured Logging** (tracing).
+2. **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown).
+3. **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC).

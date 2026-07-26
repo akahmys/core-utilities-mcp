@@ -1,3 +1,5 @@
+//! System introspection and sandboxed shell command execution.
+
 use crate::guardrails::truncate_output;
 use crate::{CoreError, CoreResult};
 use serde_json::{json, Value};
@@ -7,7 +9,23 @@ use sysinfo::{Disks, System};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
-/// Retrieves system diagnostics context including OS, hostname, CPUs, disk capacity, and IDs.
+/// Aggregates OS name, hostname, CPU core count, total free disk space
+/// across all mounted disks, and the current process's user/group ID
+/// (Unix only; `"N/A"` elsewhere) into a single JSON object.
+///
+/// # Errors
+/// Returns [`CoreError::System`] if the current process ID cannot be
+/// determined.
+///
+/// # Examples
+///
+/// ```
+/// use core_utilities_mcp_lib::sys_ops::get_system_context;
+///
+/// let ctx = get_system_context()?;
+/// println!("running on {}", ctx["os"]);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn get_system_context() -> CoreResult<Value> {
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -49,8 +67,32 @@ pub fn get_system_context() -> CoreResult<Value> {
     }))
 }
 
-/// Executes a shell command inside a sandboxed wrapper with timeout and memory limits.
-/// Limits output using AI_COMMAND_MAX_CHARACTERS boundary limiters.
+/// Runs `command` in a shell (`sh -c` on Unix, `cmd /C` on Windows) with two
+/// safety constraints: a 5-second wall-clock timeout, and a hard kill if
+/// buffered stdout exceeds 4x the `AI_COMMAND_MAX_CHARACTERS` byte budget
+/// (default `8192`, so a 32KB safeguard). Returned `stdout` is further
+/// truncated to the configured character limit via
+/// [`truncate_output`](crate::guardrails::truncate_output). This does not
+/// impose CPU or memory limits, and does not restrict the command's
+/// filesystem or network access — callers requiring stronger isolation
+/// should run this behind an OS-level sandbox (container, VM, seccomp).
+///
+/// # Errors
+/// Returns [`CoreError::Process`] if the command cannot be spawned or its
+/// exit status cannot be read, or [`CoreError::Command`] if it exceeds the
+/// timeout.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::sys_ops::execute_command_in_sandbox;
+///
+/// # async fn run() -> Result<(), core_utilities_mcp_lib::CoreError> {
+/// let result = execute_command_in_sandbox("echo hello").await?;
+/// println!("{}", result["stdout"]);
+/// # Ok(())
+/// # }
+/// ```
 pub async fn execute_command_in_sandbox(command: &str) -> CoreResult<Value> {
     let limit: usize = std::env::var("AI_COMMAND_MAX_CHARACTERS")
         .ok()

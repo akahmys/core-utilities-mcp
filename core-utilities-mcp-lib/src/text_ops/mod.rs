@@ -1,9 +1,31 @@
+//! Pagination, structural extraction, and structured-data querying: reading
+//! large files in windows, filtering/sorting CSV-like matrices, stripping
+//! implementation bodies down to a code skeleton, and querying JSON by path.
+
 use crate::errors::{CoreError, CoreResult};
 use crate::guardrails::{truncate_output, validate_path_safety, TruncateResult};
 use serde_json::Value;
 use std::path::Path;
 
-/// Reads file contents starting from `start_offset` and applies output limits.
+/// Reads `path` as UTF-8 text starting at character offset `start_offset`
+/// (default `0`) and applies the standard
+/// [`truncate_output`](crate::guardrails::truncate_output) size limit. When
+/// the result is truncated, `next_offset` gives the offset to resume from on
+/// a subsequent call, enabling windowed reads of arbitrarily large files.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if `path` fails safety validation, or
+/// [`CoreError::File`] if it does not exist or is not valid UTF-8.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::text_ops::read_file_with_limit;
+///
+/// let page = read_file_with_limit("README.md", None, None)?;
+/// println!("{}", page.content);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn read_file_with_limit(
     path: &str,
     start_offset: Option<usize>,
@@ -28,7 +50,30 @@ pub fn read_file_with_limit(
     Ok(res)
 }
 
-/// Filters specified columns from CSV/TSV matrices and applies optional deduplication.
+/// Reads the CSV (or TSV, inferred from a `.tsv` extension) file at `path`,
+/// keeps only the named `columns` (in the order given), sorts the resulting
+/// rows, optionally deduplicating them, and returns the output as
+/// delimiter-joined text subject to the standard output limit.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if `path` fails safety validation,
+/// [`CoreError::File`] if it does not exist or cannot be opened,
+/// [`CoreError::Parsing`] if the CSV/TSV cannot be parsed, or
+/// [`CoreError::General`] if none of `columns` match the header row.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::text_ops::filter_and_sort_matrix_columns;
+///
+/// let result = filter_and_sort_matrix_columns(
+///     "data/users.csv",
+///     vec!["id".to_string(), "name".to_string()],
+///     Some(true),
+/// )?;
+/// println!("{}", result.content);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn filter_and_sort_matrix_columns(
     path: &str,
     columns: Vec<String>,
@@ -95,7 +140,26 @@ pub fn filter_and_sort_matrix_columns(
     Ok(truncate_output(&output))
 }
 
-/// Agnostic regex skeleton parser that strips local implementation bodies to save token counts.
+/// Produces a compact "skeleton" of the source file at `path` by keeping
+/// only definition lines (`class`, `def`, `fn`, `struct`, `impl`, etc.) and
+/// top-level statements, stripping block bodies and comments. This is a
+/// language-agnostic, regex-based heuristic (not a full parser), intended to
+/// let an AI agent survey a file's structure using a fraction of the tokens
+/// a full read would cost.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if `path` fails safety validation, or
+/// [`CoreError::File`] if it does not exist or is not valid UTF-8.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::text_ops::extract_code_skeleton;
+///
+/// let skeleton = extract_code_skeleton("src/lib.rs")?;
+/// println!("{}", skeleton.content);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn extract_code_skeleton(path: &str) -> CoreResult<TruncateResult> {
     validate_path_safety(path)?;
     let path_buf = Path::new(path);
@@ -141,7 +205,25 @@ pub fn extract_code_skeleton(path: &str) -> CoreResult<TruncateResult> {
     Ok(truncate_output(&skeleton))
 }
 
-/// Helper to parse dot-separated and indexed paths (e.g. data.users[0].id)
+/// Reads the JSON file at `path` and resolves `json_path`, a dot-separated
+/// path with optional bracket indices (e.g. `data.users[0].id`), returning
+/// the matched value.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if `path` fails safety validation,
+/// [`CoreError::File`] if it does not exist, [`CoreError::Parsing`] if it is
+/// not valid JSON, or [`CoreError::General`] if `json_path` does not resolve
+/// to a value.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::text_ops::query_json_by_path;
+///
+/// let id = query_json_by_path("data/users.json", "data.users[0].id")?;
+/// println!("{}", id);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
     validate_path_safety(path)?;
     let path_buf = Path::new(path);

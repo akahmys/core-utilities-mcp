@@ -1,10 +1,29 @@
+//! File and directory manipulation: copy, move, delete, create, list, stat,
+//! and a safe line-range editor. Every mutating entry point runs its path(s)
+//! through [`crate::guardrails::validate_path_safety`] before touching disk.
+
 use crate::errors::{CoreError, CoreResult};
 use crate::guardrails::validate_path_safety;
 use serde_json::{json, Value};
 use std::path::Path;
 use std::time::SystemTime;
 
-/// Safe wrapper around file and directory deletions.
+/// Deletes a file or, recursively, a directory, after validating that
+/// `path` is not a catastrophic target (see
+/// [`validate_path_safety`](crate::guardrails::validate_path_safety)).
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if the path fails safety validation, or
+/// [`CoreError::File`] if the target does not exist or removal fails.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::delete_file_or_directory;
+///
+/// delete_file_or_directory("/tmp/scratch/old_report.txt")?;
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn delete_file_or_directory(path: &str) -> CoreResult<()> {
     validate_path_safety(path)?;
 
@@ -22,7 +41,21 @@ pub fn delete_file_or_directory(path: &str) -> CoreResult<()> {
     }
 }
 
-/// Lists files, folders, and links in a directory.
+/// Lists the immediate contents of a directory (defaulting to `.`), split
+/// into `files`, `directories`, and `links` name arrays.
+///
+/// # Errors
+/// Returns [`CoreError::File`] if `path` is not a directory or cannot be read.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::list_directory_contents;
+///
+/// let listing = list_directory_contents(Some("src".to_string()))?;
+/// println!("{}", listing["files"]);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn list_directory_contents(path: Option<String>) -> CoreResult<Value> {
     let target_path_str = path.unwrap_or_else(|| ".".to_string());
     validate_path_safety(&target_path_str)?;
@@ -65,7 +98,22 @@ pub fn list_directory_contents(path: Option<String>) -> CoreResult<Value> {
     }))
 }
 
-/// Retrieves realpath, size, permissions, and timestamps.
+/// Retrieves the canonical absolute path, size, read-only flag, and
+/// modified/accessed timestamps (Unix epoch seconds) for `path`.
+///
+/// # Errors
+/// Returns [`CoreError::File`] if `path` does not exist or its metadata
+/// cannot be read.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::get_file_metadata;
+///
+/// let meta = get_file_metadata("Cargo.toml")?;
+/// println!("size: {}", meta["size_bytes"]);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn get_file_metadata(path: &str) -> CoreResult<Value> {
     validate_path_safety(path)?;
 
@@ -112,7 +160,22 @@ pub fn get_file_metadata(path: &str) -> CoreResult<Value> {
     }))
 }
 
-/// Copy a file or directory recursively.
+/// Copies `source` to `destination`, recursing into subdirectories when
+/// `source` is a directory. Missing parent directories of `destination` are
+/// created automatically.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if either path fails safety validation,
+/// or [`CoreError::File`] if `source` does not exist or the copy fails.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::copy_file_or_directory;
+///
+/// copy_file_or_directory("config/base.toml", "config/backup.toml")?;
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn copy_file_or_directory(source: &str, destination: &str) -> CoreResult<()> {
     validate_path_safety(source)?;
     validate_path_safety(destination)?;
@@ -161,7 +224,21 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> CoreResult<()> 
     Ok(())
 }
 
-/// Move a file or directory.
+/// Moves (renames) `source` to `destination`, creating any missing parent
+/// directories of `destination` first.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if either path fails safety validation,
+/// or [`CoreError::File`] if `source` does not exist or the move fails.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::move_file_or_directory;
+///
+/// move_file_or_directory("drafts/report.md", "published/report.md")?;
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn move_file_or_directory(source: &str, destination: &str) -> CoreResult<()> {
     validate_path_safety(source)?;
     validate_path_safety(destination)?;
@@ -184,14 +261,53 @@ pub fn move_file_or_directory(source: &str, destination: &str) -> CoreResult<()>
     std::fs::rename(src, dest).map_err(|e| CoreError::File(format!("Failed to move target: {}", e)))
 }
 
-/// Creates a directory, including all intermediate parents (equivalent to mkdir -p).
+/// Creates `path`, including all intermediate parent directories
+/// (equivalent to `mkdir -p`).
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if `path` fails safety validation, or
+/// [`CoreError::File`] if directory creation fails.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::create_directory;
+///
+/// create_directory("build/output/nested")?;
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn create_directory(path: &str) -> CoreResult<()> {
     validate_path_safety(path)?;
     std::fs::create_dir_all(Path::new(path))
         .map_err(|e| CoreError::File(format!("Failed to create directory: {}", e)))
 }
 
-/// Edit file content in a specific line range if it matches target_content.
+/// Replaces the 1-indexed line range `start_line..=end_line` in `path` with
+/// `replacement_content`, but only if that range's current content
+/// (whitespace-trimmed) exactly matches `target_content`. This
+/// verify-then-write pattern prevents editing stale or unexpected content.
+/// The write is atomic: content is staged to a sibling `.tmp` file and
+/// renamed into place.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if `path` fails safety validation, or
+/// [`CoreError::File`] if `path` is not a file, the line range is invalid,
+/// `target_content` does not match, or the write fails.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::edit_file_content;
+///
+/// edit_file_content(
+///     "src/config.rs",
+///     3,
+///     3,
+///     "const LIMIT: usize = 100;",
+///     "const LIMIT: usize = 200;",
+/// )?;
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn edit_file_content(
     path: &str,
     start_line: usize,

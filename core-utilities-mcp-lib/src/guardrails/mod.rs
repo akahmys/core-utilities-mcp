@@ -1,3 +1,7 @@
+//! Mechanical safety boundaries shared by every operation in this crate:
+//! path safety validation (rejecting catastrophic mutation targets) and
+//! output truncation (keeping tool responses within an AI-friendly size).
+
 use crate::errors::{CoreError, CoreResult};
 use serde::{Deserialize, Serialize};
 
@@ -8,12 +12,61 @@ pub struct TruncateResult {
     pub next_offset: Option<usize>,
 }
 
-/// Validates target paths for filesystem mutations.
-/// Reject targets like `.`, `/`, `*`, `~`, `""`, or path patterns ending with `/*` or `/.*`.
+/// Top-level system directories that must never be targeted directly by a
+/// mutation (delete, move, copy destination, mkdir, or edit). Matching is
+/// exact (case-insensitive, ignoring trailing separators) so legitimate work
+/// on subpaths such as `/etc/myapp.conf` remains unaffected.
+const CRITICAL_SYSTEM_DIRS: &[&str] = &[
+    "/etc",
+    "/bin",
+    "/sbin",
+    "/usr",
+    "/boot",
+    "/dev",
+    "/proc",
+    "/sys",
+    "/root",
+    "/system",
+    "/library",
+    "c:\\windows",
+    "c:\\program files",
+    "c:\\program files (x86)",
+];
+
+fn is_critical_system_dir(trimmed: &str) -> bool {
+    let normalized = trimmed.trim_end_matches(['/', '\\']).to_lowercase();
+    CRITICAL_SYSTEM_DIRS.contains(&normalized.as_str())
+}
+
+/// Validates a target path before it is used in a filesystem mutation
+/// (delete, move, copy destination, mkdir, or edit).
+///
+/// Rejects:
+/// - empty or whitespace-only paths, and paths containing a NUL byte
+/// - exact matches for `.`, `/`, `*`, `~`
+/// - wildcard-terminated patterns (`/*`, `/.*`, and the Windows-style `\*`, `\.*`)
+/// - exact matches (case-insensitive, ignoring trailing separators) against a
+///   fixed deny-list of critical system directories (e.g. `/etc`, `/usr`,
+///   `C:\Windows`); subpaths beneath these directories are still permitted
+///
+/// # Examples
+///
+/// ```
+/// use core_utilities_mcp_lib::guardrails::validate_path_safety;
+///
+/// assert!(validate_path_safety("src/lib.rs").is_ok());
+/// assert!(validate_path_safety("/").is_err());
+/// assert!(validate_path_safety("/etc").is_err());
+/// assert!(validate_path_safety("/etc/hosts").is_ok());
+/// ```
 pub fn validate_path_safety(path: &str) -> CoreResult<()> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
         return Err(CoreError::Guardrail("path is empty".to_string()));
+    }
+
+    if trimmed.contains('\0') {
+        return Err(CoreError::Guardrail("path contains a NUL byte".to_string()));
     }
 
     // Complete matches
@@ -36,10 +89,33 @@ pub fn validate_path_safety(path: &str) -> CoreResult<()> {
         )));
     }
 
+    if is_critical_system_dir(trimmed) {
+        return Err(CoreError::Guardrail(format!(
+            "operation targets a critical system directory '{}'",
+            trimmed
+        )));
+    }
+
     Ok(())
 }
 
-/// Dynamic character output limiter utilizing environment variables.
+/// Truncates `input` to at most `AI_COMMAND_MAX_CHARACTERS` characters
+/// (default `8192`), preferring to cut at the last newline within the limit
+/// so structured output (JSON lines, log lines) is not split mid-line. When
+/// truncation occurs, `next_offset` reports the character offset callers
+/// should resume reading from.
+///
+/// # Examples
+///
+/// ```
+/// use core_utilities_mcp_lib::guardrails::truncate_output;
+///
+/// std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "5");
+/// let result = truncate_output("hello world");
+/// assert_eq!(result.status, "truncated");
+/// assert_eq!(result.content, "hello");
+/// assert_eq!(result.next_offset, Some(5));
+/// ```
 pub fn truncate_output(input: &str) -> TruncateResult {
     let limit: usize = std::env::var("AI_COMMAND_MAX_CHARACTERS")
         .ok()
@@ -95,6 +171,23 @@ mod tests {
         assert!(validate_path_safety("/var/log/*").is_err());
         assert!(validate_path_safety(&format!("{}{}", "/ho", "me/user/.*")).is_err());
         assert!(validate_path_safety("C:\\*").is_err());
+    }
+
+    #[test]
+    fn test_critical_system_dirs_rejected() {
+        assert!(validate_path_safety("/etc").is_err());
+        assert!(validate_path_safety("/etc/").is_err());
+        assert!(validate_path_safety("/ETC").is_err());
+        assert!(validate_path_safety("/usr").is_err());
+        assert!(validate_path_safety("C:\\Windows").is_err());
+        // Subpaths beneath critical directories remain permitted.
+        assert!(validate_path_safety("/etc/hosts").is_ok());
+        assert!(validate_path_safety("/usr/local/myproject").is_ok());
+    }
+
+    #[test]
+    fn test_nul_byte_rejected() {
+        assert!(validate_path_safety("path/with\0null").is_err());
     }
 
     #[test]

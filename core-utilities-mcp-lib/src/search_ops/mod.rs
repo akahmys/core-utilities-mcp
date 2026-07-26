@@ -1,3 +1,6 @@
+//! High-efficiency `grep`- and `find`-style search, returning JSON-structured,
+//! output-limited results instead of raw unbounded text.
+
 use crate::errors::{CoreError, CoreResult};
 use crate::guardrails::{truncate_output, validate_path_safety, TruncateResult};
 use regex::Regex;
@@ -5,7 +8,27 @@ use serde_json::json;
 use std::path::Path;
 use walkdir::WalkDir;
 
-/// Performs grep-like searches under a root directory or file within the output characters limit.
+/// Searches for `query_string` (plain substring, or a regex when `is_regex`
+/// is `true`) across every file under `search_root_or_file`, or within a
+/// single file if it points directly at one. Matches are returned as a
+/// JSON array of `{file, line, content}` objects and are subject to the
+/// same [`truncate_output`](crate::guardrails::truncate_output) limits as
+/// other tools.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if the path fails safety validation,
+/// [`CoreError::File`] if it does not exist, or [`CoreError::Parsing`] if
+/// `is_regex` is `true` and `query_string` is not a valid regex.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::search_ops::search_text_with_limit;
+///
+/// let result = search_text_with_limit("src", "TODO", Some(false))?;
+/// println!("{}", result.content);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn search_text_with_limit(
     search_root_or_file: &str,
     query_string: &str,
@@ -62,7 +85,24 @@ pub fn search_text_with_limit(
     Ok(truncate_output(&payload))
 }
 
-/// Finds files or directories under a search root by name pattern and/or type.
+/// Walks `search_root` (defaulting to `.`) and returns the paths of entries
+/// matching an optional `name_pattern` regex and/or `file_type`
+/// (`"file"`, `"directory"`/`"dir"`, or `"symlink"`).
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if the root fails safety validation,
+/// [`CoreError::File`] if it does not exist, or [`CoreError::Parsing`] if
+/// `name_pattern` is not a valid regex.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::search_ops::search_file_by_name_or_type;
+///
+/// let result = search_file_by_name_or_type(Some("src"), Some(r"\.rs$"), Some("file"))?;
+/// println!("{}", result.content);
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
 pub fn search_file_by_name_or_type(
     search_root: Option<&str>,
     name_pattern: Option<&str>,

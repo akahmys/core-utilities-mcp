@@ -52,7 +52,7 @@ All commands outputting text respect the `AI_COMMAND_MAX_CHARACTERS` environment
     ```
 
 ### 2. Path Safety Validation (`rm -rf` Water-Edge Defense)
-All destructive commands apply path safety validation before execution. Operations on dangerous targets such as `.`, `/`, `*`, `~`, `""` (empty string), or paths ending with wildcards (`/*`, `/.*`) are immediately rejected.
+All destructive commands apply path safety validation before execution. Operations on dangerous targets such as `.`, `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
 
 ---
 
