@@ -1,4 +1,5 @@
-//! System introspection and sandboxed shell command execution.
+//! System introspection and shell command execution (timeout-bounded, not
+//! sandboxed or isolated).
 
 use crate::guardrails::truncate_output;
 use crate::{CoreError, CoreResult};
@@ -136,15 +137,15 @@ pub fn get_system_context() -> CoreResult<Value> {
 /// # Examples
 ///
 /// ```no_run
-/// use core_utilities_mcp_lib::sys_ops::execute_command_in_sandbox;
+/// use core_utilities_mcp_lib::sys_ops::execute_command;
 ///
 /// # async fn run() -> Result<(), core_utilities_mcp_lib::CoreError> {
-/// let result = execute_command_in_sandbox("cargo test", Some("/path/to/project"), Some(120)).await?;
+/// let result = execute_command("cargo test", Some("/path/to/project"), Some(120)).await?;
 /// println!("{}", result["stdout"]);
 /// # Ok(())
 /// # }
 /// ```
-pub async fn execute_command_in_sandbox(
+pub async fn execute_command(
     command: &str,
     working_directory: Option<&str>,
     timeout_seconds: Option<u64>,

@@ -11,9 +11,7 @@ fn test_get_system_context() {
 async fn test_execute_command_success() {
     let _lock = crate::guardrails::ENV_MUTEX.lock().await;
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "100");
-    let res = execute_command_in_sandbox("echo hello", None, None)
-        .await
-        .unwrap();
+    let res = execute_command("echo hello", None, None).await.unwrap();
     assert_eq!(res["exit_code"], 0);
     assert!(res["stdout"].as_str().unwrap().contains("hello"));
 }
@@ -22,7 +20,7 @@ async fn test_execute_command_success() {
 async fn test_execute_command_timeout() {
     // A 1s timeout against a longer sleep should time out quickly rather
     // than waiting out the default.
-    let res = execute_command_in_sandbox("sleep 5", None, Some(1)).await;
+    let res = execute_command("sleep 5", None, Some(1)).await;
     assert!(res.is_err());
 }
 
@@ -33,7 +31,7 @@ async fn test_execute_command_uses_explicit_working_directory() {
     let dir = tempfile::tempdir().unwrap();
     let canonical = dir.path().canonicalize().unwrap();
 
-    let res = execute_command_in_sandbox("pwd", canonical.to_str(), None)
+    let res = execute_command("pwd", canonical.to_str(), None)
         .await
         .unwrap();
     assert_eq!(
@@ -49,7 +47,7 @@ async fn test_execute_command_defaults_to_workspace_root() {
     let canonical = dir.path().canonicalize().unwrap();
     std::env::set_var("AI_WORKSPACE_ROOT", &canonical);
 
-    let res = execute_command_in_sandbox("pwd", None, None).await.unwrap();
+    let res = execute_command("pwd", None, None).await.unwrap();
     assert_eq!(
         res["stdout"].as_str().unwrap().trim(),
         canonical.to_str().unwrap()

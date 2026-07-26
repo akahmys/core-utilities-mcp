@@ -60,9 +60,9 @@ RUST_LOG=debug core-utilities-mcp
 ### 3. Path Safety Validation (`rm -rf` Water-Edge Defense)
 All destructive commands apply path safety validation before execution. Operations on dangerous targets such as `.`, `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
 
-This is a mistake-prevention guard for an AI agent going off-script, not an adversarial security boundary — it does not resolve symlinks, and provides no protection for calls that bypass it entirely (e.g. `execute_command_in_sandbox`, which is not path-validated).
+This is a mistake-prevention guard for an AI agent going off-script, not an adversarial security boundary — it does not resolve symlinks, and provides no protection for calls that bypass it entirely (e.g. `execute_command`, which is not path-validated).
 
-**Optional workspace confinement (`AI_WORKSPACE_ROOT`)**: if set, every path-validated tool call is restricted to that directory (and its subdirectories) — anything outside it, including via `../` traversal, is rejected. Unset (the default), there is no such restriction. It also becomes the default `working_directory` for `execute_command_in_sandbox` when the caller doesn't specify one.
+**Optional workspace confinement (`AI_WORKSPACE_ROOT`)**: if set, every path-validated tool call is restricted to that directory (and its subdirectories) — anything outside it, including via `../` traversal, is rejected. Unset (the default), there is no such restriction. It also becomes the default `working_directory` for `execute_command` when the caller doesn't specify one.
 ```json
 "core-utilities-mcp": {
   "command": "/Users/akahmys/.cargo/bin/core-utilities-mcp",
@@ -73,7 +73,7 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
 ```
 
 ### 4. Configurable Command Timeout (`AI_COMMAND_TIMEOUT_SECONDS`)
-`execute_command_in_sandbox` applies a wall-clock timeout to every command: an explicit per-call `timeout_seconds` argument wins, falling back to `AI_COMMAND_TIMEOUT_SECONDS` (default `30`), always clamped to at most `300` seconds.
+`execute_command` applies a wall-clock timeout to every command: an explicit per-call `timeout_seconds` argument wins, falling back to `AI_COMMAND_TIMEOUT_SECONDS` (default `30`), always clamped to at most `300` seconds.
 ```bash
 AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 ```
@@ -100,9 +100,9 @@ AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 11. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
 12. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
 
-### System & Sandbox
+### System & Shell Execution
 13. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
-14. `execute_command_in_sandbox`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
+14. `execute_command`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
 
 

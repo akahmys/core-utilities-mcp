@@ -13,7 +13,7 @@ Traditional UNIX-style command-line interfaces, designed for human interaction a
 
 **What it defends against**: an AI agent going off-script — a hallucinated path, an overly broad `rm`/`mv` target, an edit landing outside the intended project. This is *mistake prevention*, not a security boundary.
 
-**What it does not defend against**: a determined or maliciously-instructed caller. Guardrails do not resolve symlinks, and — critically — `execute_command_in_sandbox` is not path-validated at all; anything routed through it bypasses every other guardrail in this crate entirely (see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command_in_sandbox) below). If you need isolation from an untrusted or adversarial caller, wrap the whole process in an OS-level boundary (container, VM, restricted user) — this crate does not attempt to provide one itself.
+**What it does not defend against**: a determined or maliciously-instructed caller. Guardrails do not resolve symlinks, and — critically — `execute_command` is not path-validated at all; anything routed through it bypasses every other guardrail in this crate entirely (see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command) below). If you need isolation from an untrusted or adversarial caller, wrap the whole process in an OS-level boundary (container, VM, restricted user) — this crate does not attempt to provide one itself.
 
 Every design decision below should be read against this model: invest in guarding against realistic agent mistakes in this single-user, local context; don't build security theater for threats this project doesn't actually face.
 
@@ -67,7 +67,7 @@ Destructive operations validate target paths string-by-string. An attempt to mod
 
 **Optional workspace confinement**: setting `AI_WORKSPACE_ROOT` restricts every path-validated call to that directory (and its subdirectories); anything outside it, including via `../` traversal, is rejected. Off by default. As with everything else here, this is a mistake-prevention guard, not an adversarial boundary — see [Threat Model & Scope](#-threat-model--scope).
 
-### The Shell Escape Hatch (`execute_command_in_sandbox`)
+### The Shell Escape Hatch (`execute_command`)
 Modeled after the bash tool found in coding-agent toolkits, this runs an arbitrary shell command with a wall-clock timeout and an output-size guard — nothing more. It is **not** path-validated, **not** confined by `AI_WORKSPACE_ROOT`, and provides no filesystem, network, CPU, or memory isolation from the host.
 
 This is a deliberate design choice, not an oversight: without unrestricted shell access, an agent's practical capability collapses — this tool exists precisely because the structured, deterministic tools above it can't cover everything. Rather than fighting that by trying to sandbox it (disproportionate for the single-user, local, trusted context this crate targets), the design leans into it: invest in making it maximally *useful* (`timeout_seconds` overriding `AI_COMMAND_TIMEOUT_SECONDS`; `working_directory` defaulting to `AI_WORKSPACE_ROOT`) rather than pretending to make it safe, and state its limits honestly everywhere it's described.

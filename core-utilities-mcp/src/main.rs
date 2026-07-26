@@ -4,7 +4,7 @@ use core_utilities_mcp_lib::file_ops::{
     get_file_metadata, list_directory_contents, move_file_or_directory,
 };
 use core_utilities_mcp_lib::search_ops::{search_file_by_name_or_type, search_text_with_limit};
-use core_utilities_mcp_lib::sys_ops::{execute_command_in_sandbox, get_system_context};
+use core_utilities_mcp_lib::sys_ops::{execute_command, get_system_context};
 use core_utilities_mcp_lib::text_ops::{
     filter_and_sort_matrix_columns, query_json_by_path, read_file_with_limit,
 };
@@ -440,7 +440,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                         }
                     },
                     {
-                        "name": "execute_command_in_sandbox",
+                        "name": "execute_command",
                         "description": "Runs a shell command with a wall-clock timeout and an output-size guard. Provides no filesystem, network, CPU, or memory isolation from the host, and neither the command nor working_directory are subject to path-safety validation.",
                         "inputSchema": {
                             "type": "object",
@@ -627,7 +627,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                     query_json_by_path(&args.path, &args.json_path).map(|v| v.to_string())
                 }
                 "get_system_context" => get_system_context().map(|v| v.to_string()),
-                "execute_command_in_sandbox" => {
+                "execute_command" => {
                     let args: ExecCmdArgs =
                         serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
                             .unwrap_or(ExecCmdArgs {
@@ -635,7 +635,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
                                 working_directory: None,
                                 timeout_seconds: None,
                             });
-                    match execute_command_in_sandbox(
+                    match execute_command(
                         &args.command,
                         args.working_directory.as_deref(),
                         args.timeout_seconds,
