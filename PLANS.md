@@ -28,10 +28,10 @@
 *   [x] **AWU 4.2: Enhance Guardrails & Safety**
 *   [x] **AWU 4.3: Documentation & API Design** (doc comments & examples)
 
-### Phase 3: Server Maturity (In Progress)
+### Phase 3: Server Maturity (Completed)
 *   [x] **AWU 5.1: Integrate Structured Logging** (tracing)
 *   [x] **AWU 5.2: Refine JSON-RPC Loop** (graceful shutdown)
-*   [ ] **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC)
+*   [x] **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC)
 
 ### Phase 4: Quality Assurance & Automation (Planned)
 *   [ ] **AWU 6.1: Expand Test Coverage** (unit, integration, property)
@@ -61,8 +61,9 @@
 | **4.3** | **Documentation & API Design** | `[✅] Completed` | Added crate-level (`//!`) and per-module doc comments across `guardrails`, `file_ops`, `search_ops`, `text_ops`, `sys_ops`, each with `# Errors` and `# Examples` sections. `cargo test --doc` grew from 0 to 17 passing doctests. |
 | **5.1** | **Integrate Structured Logging** | `[✅] Completed` | Added `tracing`/`tracing-subscriber` to `core-utilities-mcp`. Logs (request method, tool name, `error_type` on failure, startup/shutdown) go to stderr only, gated by `RUST_LOG` (default `info`); stdout remains pure JSON-RPC. Verified via manual stdout/stderr separation test. README documents `RUST_LOG`. |
 | **5.2** | **Refine JSON-RPC Loop** | `[✅] Completed` | Switched stdin reading to async (`tokio::io::stdin` + `AsyncBufReadExt`) so a `Ctrl+C`/`SIGTERM` (`shutdown_signal()`) can interrupt a blocked read via `tokio::select!`. Discovered and fixed a real hang: since `tokio::io::stdin()` reads via a blocking OS thread, returning normally from `main` after a signal made the implicit `Runtime` Drop wait forever for that thread (reproduced with a FIFO held open, simulating a live MCP client connection) — fixed via `std::process::exit(0)` on the signal path. Verified: SIGTERM now exits in ~100ms even mid-read; stdin-EOF and normal request/response flows unaffected (21 unit + 17 doctests still pass). |
+| **5.3** | **Add Integration Testing** | `[✅] Completed` | Added `core-utilities-mcp/tests/integration_test.rs` (157 lines): spawns the real compiled binary and drives it over actual stdin/stdout pipes. 7 tests cover `initialize`/`tools/list` (asserts all 15 tools), a successful `tools/call`, a failing `tools/call` asserting `error_type`, malformed-JSON parse errors, unknown-method errors, notification-produces-no-output-line, and graceful exit on stdin close. All pass; `cargo fmt`/`clippy` clean. |
 
 ---
 
 ## 🚀 Next Steps
-1. **AWU 5.3: Add Integration Testing** (end-to-end JSON-RPC).
+Phase 3 (Server Maturity) is complete. Remaining roadmap: Phase 4 — Quality Assurance & Automation (AWU 6.1: expand test coverage further; AWU 6.2: CI/CD pipeline via GitHub Actions).
