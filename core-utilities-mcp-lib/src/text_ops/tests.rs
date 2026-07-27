@@ -84,14 +84,18 @@ fn test_filter_and_sort_matrix_columns_no_matching_columns() {
     writeln!(file, "1,Alice,30").unwrap();
 
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "1000");
-    assert!(matches!(
-        filter_and_sort_matrix_columns(
-            file_path.to_str().unwrap(),
-            vec!["nonexistent".to_string()],
-            None,
-        ),
-        Err(CoreError::General(_))
-    ));
+    let err = filter_and_sort_matrix_columns(
+        file_path.to_str().unwrap(),
+        vec!["nonexistent".to_string()],
+        None,
+    )
+    .unwrap_err();
+    assert!(matches!(err, CoreError::General(_)));
+    let message = err.to_string();
+    assert!(message.contains("nonexistent"));
+    assert!(message.contains("\"id\""));
+    assert!(message.contains("\"name\""));
+    assert!(message.contains("\"age\""));
 }
 
 #[test]
@@ -102,10 +106,11 @@ fn test_query_json_by_path_missing_path_returns_general_error() {
     let mut file = File::create(&file_path).unwrap();
     writeln!(file, r#"{{"data": {{}}}}"#).unwrap();
 
-    assert!(matches!(
-        query_json_by_path(file_path.to_str().unwrap(), "data.missing"),
-        Err(CoreError::General(_))
-    ));
+    let err = query_json_by_path(file_path.to_str().unwrap(), "data.missing").unwrap_err();
+    assert!(matches!(err, CoreError::General(_)));
+    let message = err.to_string();
+    assert!(message.contains("stopped at '/data'"));
+    assert!(message.contains("an object with keys"));
 }
 
 #[test]

@@ -2,7 +2,7 @@
 //! output-limited results instead of raw unbounded text.
 
 use crate::errors::{CoreError, CoreResult};
-use crate::guardrails::{truncate_output, validate_path_safety, TruncateResult};
+use crate::guardrails::{truncate_output, validate_read_path_safety, TruncateResult};
 use regex::Regex;
 use serde_json::json;
 use std::path::Path;
@@ -34,7 +34,7 @@ pub fn search_text_with_limit(
     query_string: &str,
     is_regex: Option<bool>,
 ) -> CoreResult<TruncateResult> {
-    validate_path_safety(search_root_or_file)?;
+    validate_read_path_safety(search_root_or_file)?;
 
     let is_regex = is_regex.unwrap_or(false);
     let matcher: Box<dyn Fn(&str) -> bool> = if is_regex {
@@ -109,7 +109,7 @@ pub fn search_file_by_name_or_type(
     file_type: Option<&str>,
 ) -> CoreResult<TruncateResult> {
     let root_str = search_root.unwrap_or(".");
-    validate_path_safety(root_str)?;
+    validate_read_path_safety(root_str)?;
 
     let path = Path::new(root_str);
     if !path.exists() {

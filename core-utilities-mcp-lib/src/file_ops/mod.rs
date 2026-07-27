@@ -3,7 +3,7 @@
 //! through [`crate::guardrails::validate_path_safety`] before touching disk.
 
 use crate::errors::{CoreError, CoreResult};
-use crate::guardrails::validate_path_safety;
+use crate::guardrails::{validate_path_safety, validate_read_path_safety};
 use serde_json::{json, Value};
 use std::path::Path;
 use std::time::SystemTime;
@@ -58,7 +58,7 @@ pub fn delete_file_or_directory(path: &str) -> CoreResult<()> {
 /// ```
 pub fn list_directory_contents(path: Option<String>) -> CoreResult<Value> {
     let target_path_str = path.unwrap_or_else(|| ".".to_string());
-    validate_path_safety(&target_path_str)?;
+    validate_read_path_safety(&target_path_str)?;
 
     let target_path = Path::new(&target_path_str);
     if !target_path.is_dir() {
@@ -115,7 +115,7 @@ pub fn list_directory_contents(path: Option<String>) -> CoreResult<Value> {
 /// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
 /// ```
 pub fn get_file_metadata(path: &str) -> CoreResult<Value> {
-    validate_path_safety(path)?;
+    validate_read_path_safety(path)?;
 
     let path_buf = Path::new(path);
     if !path_buf.exists() {

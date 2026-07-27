@@ -211,7 +211,11 @@ pub async fn execute_command(
     tokio::select! {
         _ = tokio::time::sleep(timeout_duration) => {
             let _ = child.kill().await;
-            Err(CoreError::Command("Command execution timed out".to_string()))
+            Err(CoreError::Command(format!(
+                "Command execution timed out after {}s — pass a larger `timeout_seconds` argument (up to {}) if the command legitimately needs more time",
+                timeout_duration.as_secs(),
+                MAX_TIMEOUT_SECS
+            )))
         }
         _ = read_fut => {
             let status = child.wait().await.map_err(|e| CoreError::Process(format!("Failed to wait for child: {}", e)))?;

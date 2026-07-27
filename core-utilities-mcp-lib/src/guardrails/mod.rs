@@ -93,7 +93,7 @@ fn check_workspace_root(path: &str) -> CoreResult<()> {
     let resolved = resolve_absolute(path)?;
     if !resolved.starts_with(&root) {
         return Err(CoreError::Guardrail(format!(
-            "path '{path}' is outside the configured workspace root '{}'",
+            "path '{path}' is outside the configured workspace root '{}' — pass a path inside that directory instead",
             root.display()
         )));
     }
@@ -101,18 +101,71 @@ fn check_workspace_root(path: &str) -> CoreResult<()> {
     Ok(())
 }
 
+/// True if `trimmed`, once `.`/`..` components are lexically collapsed,
+/// refers to "here" — the directory the path is resolved against — under
+/// any spelling (`.`, `./`, `././`, `a/..`, ...). A literal `== "."`
+/// comparison misses these equivalent spellings.
+fn is_current_dir_equivalent(trimmed: &str) -> bool {
+    lexically_normalize(Path::new(trimmed))
+        .as_os_str()
+        .is_empty()
+}
+
+/// Checks shared by both [`validate_path_safety`] and
+/// [`validate_read_path_safety`]: NUL bytes, the `/`/`*`/`~` literals,
+/// wildcard-terminated patterns, critical system directories, and
+/// `AI_WORKSPACE_ROOT` confinement. Each rejection explains why the path was
+/// blocked and what to pass instead, since the caller is typically an LLM
+/// deciding how to retry.
+fn common_path_checks(trimmed: &str) -> CoreResult<()> {
+    if trimmed.contains('\0') {
+        return Err(CoreError::Guardrail("path contains a NUL byte".to_string()));
+    }
+
+    // Complete matches
+    if trimmed == "/" || trimmed == "*" || trimmed == "~" {
+        return Err(CoreError::Guardrail(format!(
+            "dangerous path sequence '{trimmed}' — this would target an entire filesystem root or every entry in a directory; pass a specific file or subdirectory instead"
+        )));
+    }
+
+    // Path pattern check: ending in /* or /.* (and also windows backslash style)
+    if trimmed.ends_with("/*")
+        || trimmed.ends_with("/.*")
+        || trimmed.ends_with("\\*")
+        || trimmed.ends_with("\\.*")
+    {
+        return Err(CoreError::Guardrail(format!(
+            "wildcard target pattern '{trimmed}' — pass an explicit file or directory path instead of a shell glob"
+        )));
+    }
+
+    if is_critical_system_dir(trimmed) {
+        return Err(CoreError::Guardrail(format!(
+            "operation targets a critical system directory '{trimmed}' — operate on a specific path beneath it instead, e.g. '{trimmed}/some-file'"
+        )));
+    }
+
+    check_workspace_root(trimmed)
+}
+
 /// Validates a target path before it is used in a filesystem mutation
 /// (delete, move, copy destination, mkdir, or edit).
 ///
 /// Rejects:
 /// - empty or whitespace-only paths, and paths containing a NUL byte
-/// - exact matches for `.`, `/`, `*`, `~`
+/// - the current directory, in any spelling that lexically collapses to it
+///   (`.`, `./`, `././`, `a/..`, ...), and exact matches for `/`, `*`, `~`
 /// - wildcard-terminated patterns (`/*`, `/.*`, and the Windows-style `\*`, `\.*`)
 /// - exact matches (case-insensitive, ignoring trailing separators) against a
 ///   fixed deny-list of critical system directories (e.g. `/etc`, `/usr`,
 ///   `C:\Windows`); subpaths beneath these directories are still permitted
 /// - anything outside `AI_WORKSPACE_ROOT`, if that environment variable is
 ///   set (confinement is opt-in; unset means no workspace restriction)
+///
+/// Read-only operations (list, stat, read, search) should use
+/// [`validate_read_path_safety`] instead, which permits the current
+/// directory since reading it cannot destroy anything.
 ///
 /// This is a mistake-prevention guard against an AI agent going off-script,
 /// not an adversarial security boundary: it does not resolve symlinks in the
@@ -125,6 +178,8 @@ fn check_workspace_root(path: &str) -> CoreResult<()> {
 /// use core_utilities_mcp_lib::guardrails::validate_path_safety;
 ///
 /// assert!(validate_path_safety("src/lib.rs").is_ok());
+/// assert!(validate_path_safety(".").is_err());
+/// assert!(validate_path_safety("./").is_err());
 /// assert!(validate_path_safety("/").is_err());
 /// assert!(validate_path_safety("/etc").is_err());
 /// assert!(validate_path_safety("/etc/hosts").is_ok());
@@ -143,40 +198,39 @@ pub fn validate_path_safety(path: &str) -> CoreResult<()> {
         return Err(CoreError::Guardrail("path is empty".to_string()));
     }
 
-    if trimmed.contains('\0') {
-        return Err(CoreError::Guardrail("path contains a NUL byte".to_string()));
-    }
-
-    // Complete matches
-    if trimmed == "." || trimmed == "/" || trimmed == "*" || trimmed == "~" {
+    if is_current_dir_equivalent(trimmed) {
         return Err(CoreError::Guardrail(format!(
-            "dangerous path sequence '{}'",
-            trimmed
+            "dangerous path sequence '{trimmed}' — this would target the entire current directory; pass a specific file or subdirectory instead"
         )));
     }
 
-    // Path pattern check: ending in /* or /.* (and also windows backslash style)
-    if trimmed.ends_with("/*")
-        || trimmed.ends_with("/.*")
-        || trimmed.ends_with("\\*")
-        || trimmed.ends_with("\\.*")
-    {
-        return Err(CoreError::Guardrail(format!(
-            "wildcard target pattern '{}'",
-            trimmed
-        )));
+    common_path_checks(trimmed)
+}
+
+/// Validates a target path before it is used in a read-only operation
+/// (list, stat, read, search). Applies the same checks as
+/// [`validate_path_safety`] except that it permits the current directory
+/// (`.`, `./`, ...): reading or listing "here" is the normal, safe default
+/// for these operations, since — unlike a mutation — it cannot destroy
+/// anything.
+///
+/// # Examples
+///
+/// ```
+/// use core_utilities_mcp_lib::guardrails::validate_read_path_safety;
+///
+/// assert!(validate_read_path_safety(".").is_ok());
+/// assert!(validate_read_path_safety("./src").is_ok());
+/// assert!(validate_read_path_safety("/").is_err());
+/// assert!(validate_read_path_safety("/etc/hosts").is_ok());
+/// ```
+pub fn validate_read_path_safety(path: &str) -> CoreResult<()> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(CoreError::Guardrail("path is empty".to_string()));
     }
 
-    if is_critical_system_dir(trimmed) {
-        return Err(CoreError::Guardrail(format!(
-            "operation targets a critical system directory '{}'",
-            trimmed
-        )));
-    }
-
-    check_workspace_root(trimmed)?;
-
-    Ok(())
+    common_path_checks(trimmed)
 }
 
 /// Truncates `input` to at most `AI_COMMAND_MAX_CHARACTERS` characters

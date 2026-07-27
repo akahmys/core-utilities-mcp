@@ -20,8 +20,10 @@ async fn test_execute_command_success() {
 async fn test_execute_command_timeout() {
     // A 1s timeout against a longer sleep should time out quickly rather
     // than waiting out the default.
-    let res = execute_command("sleep 5", None, Some(1)).await;
-    assert!(res.is_err());
+    let err = execute_command("sleep 5", None, Some(1)).await.unwrap_err();
+    let message = err.to_string();
+    assert!(message.contains("timed out after 1s"));
+    assert!(message.contains("timeout_seconds"));
 }
 
 #[tokio::test]

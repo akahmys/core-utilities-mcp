@@ -15,6 +15,34 @@ fn test_path_safety() {
 }
 
 #[test]
+fn test_path_safety_rejects_current_dir_spellings() {
+    let _lock = ENV_MUTEX.blocking_lock();
+    // Lexical spellings that all collapse to "here", not just the literal ".".
+    assert!(validate_path_safety("./").is_err());
+    assert!(validate_path_safety("././").is_err());
+    assert!(validate_path_safety("a/..").is_err());
+    // ".." on its own is a legitimate parent-directory reference, not "here".
+    assert!(validate_path_safety("..").is_ok());
+}
+
+#[test]
+fn test_read_path_safety_permits_current_dir() {
+    let _lock = ENV_MUTEX.blocking_lock();
+    assert!(validate_read_path_safety(".").is_ok());
+    assert!(validate_read_path_safety("./").is_ok());
+    assert!(validate_read_path_safety("./src").is_ok());
+    assert!(validate_read_path_safety("src/lib.rs").is_ok());
+    // Other dangerous patterns are still rejected for read-only operations.
+    assert!(validate_read_path_safety("").is_err());
+    assert!(validate_read_path_safety("/").is_err());
+    assert!(validate_read_path_safety("*").is_err());
+    assert!(validate_read_path_safety("~").is_err());
+    assert!(validate_read_path_safety("/etc").is_err());
+    assert!(validate_read_path_safety("/etc/hosts").is_ok());
+    assert!(validate_read_path_safety("path/with\0null").is_err());
+}
+
+#[test]
 fn test_critical_system_dirs_rejected() {
     let _lock = ENV_MUTEX.blocking_lock();
     assert!(validate_path_safety("/etc").is_err());

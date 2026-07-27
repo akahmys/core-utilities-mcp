@@ -3,7 +3,7 @@
 //! implementation bodies down to a code skeleton, and querying JSON by path.
 
 use crate::errors::{CoreError, CoreResult};
-use crate::guardrails::{truncate_output, validate_path_safety, TruncateResult};
+use crate::guardrails::{truncate_output, validate_read_path_safety, TruncateResult};
 use serde_json::Value;
 use std::path::Path;
 
@@ -31,7 +31,7 @@ pub fn read_file_with_limit(
     start_offset: Option<usize>,
     _smart_boundary: Option<bool>,
 ) -> CoreResult<TruncateResult> {
-    validate_path_safety(path)?;
+    validate_read_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
         return Err(CoreError::File(format!("File not found: {}", path)));
@@ -79,7 +79,7 @@ pub fn filter_and_sort_matrix_columns(
     columns: Vec<String>,
     deduplicate: Option<bool>,
 ) -> CoreResult<TruncateResult> {
-    validate_path_safety(path)?;
+    validate_read_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
         return Err(CoreError::File(format!("File not found: {}", path)));
@@ -103,9 +103,12 @@ pub fn filter_and_sort_matrix_columns(
         .collect();
 
     if col_indices.is_empty() {
-        return Err(CoreError::General(
-            "None of the specified columns were found in the CSV/TSV headers.".to_string(),
-        ));
+        return Err(CoreError::General(format!(
+            "None of the requested columns {:?} were found. Actual headers in '{}': {:?}",
+            columns,
+            path,
+            headers.iter().collect::<Vec<_>>()
+        )));
     }
 
     let mut rows = Vec::new();
@@ -160,7 +163,7 @@ pub fn filter_and_sort_matrix_columns(
 /// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
 /// ```
 pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
-    validate_path_safety(path)?;
+    validate_read_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
         return Err(CoreError::File(format!("File not found: {}", path)));
@@ -195,10 +198,45 @@ pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
         }
     }
 
-    json_data
-        .pointer(&pointer)
-        .cloned()
-        .ok_or_else(|| CoreError::General(format!("Path '{}' not found in JSON object", json_path)))
+    if let Some(value) = json_data.pointer(&pointer) {
+        return Ok(value.clone());
+    }
+
+    // Walk the pointer segment by segment to report exactly where
+    // resolution broke and what's available there — a bare "not found"
+    // gives an LLM nothing to correct `json_path` with.
+    let mut resolved_pointer = String::new();
+    let mut current = &json_data;
+    for segment in pointer.split('/').filter(|s| !s.is_empty()) {
+        let next_pointer = format!("{}/{}", resolved_pointer, segment);
+        match json_data.pointer(&next_pointer) {
+            Some(value) => {
+                current = value;
+                resolved_pointer = next_pointer;
+            }
+            None => break,
+        }
+    }
+
+    let available = match current {
+        Value::Object(map) => format!("an object with keys {:?}", map.keys().collect::<Vec<_>>()),
+        Value::Array(arr) => format!(
+            "an array with {} element(s) (valid indices 0..{})",
+            arr.len(),
+            arr.len()
+        ),
+        other => format!("a scalar value ({})", other),
+    };
+    let location = if resolved_pointer.is_empty() {
+        "the root"
+    } else {
+        &resolved_pointer
+    };
+
+    Err(CoreError::General(format!(
+        "Path '{}' not found in JSON object — resolution stopped at '{}', which is {}",
+        json_path, location, available
+    )))
 }
 
 #[cfg(test)]
