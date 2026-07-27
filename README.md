@@ -58,7 +58,9 @@ RUST_LOG=debug core-utilities-mcp
 ```
 
 ### 3. Path Safety Validation (`rm -rf` Water-Edge Defense)
-All destructive commands apply path safety validation before execution. Operations on dangerous targets such as `.`, `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
+All destructive commands (`delete_file_or_directory`, `move_file_or_directory`, `copy_file_or_directory`, `create_directory`, `edit_file_content`) apply path safety validation before execution. Operations on dangerous targets — the current directory under any spelling that lexically collapses to it (`.`, `./`, `a/..`, ...), `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) — are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
+
+Read-only commands (`list_directory_contents`, `get_file_metadata`, `search_text_with_limit`, `search_file_by_name_or_type`, `read_file_with_limit`, `filter_and_sort_matrix_columns`, `query_json_by_path`) apply the same validation *except* they permit the current directory — reading or listing "here" is the normal, safe default for these tools (several default to `.` when no path is given), and unlike a mutation it cannot destroy anything. Every rejection states what to pass instead, since the caller is typically an LLM deciding how to retry.
 
 This is a mistake-prevention guard for an AI agent going off-script, not an adversarial security boundary — it does not resolve symlinks, and provides no protection for calls that bypass it entirely (e.g. `execute_command`, which is not path-validated).
 

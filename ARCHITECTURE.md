@@ -38,9 +38,9 @@ graph TD
     MCP -->|Direct Function Invocation| LIB
     
     subgraph core-utilities-mcp-lib [Pure Rust Core Crate]
-        G[guardrails] -->|validate_path_safety / truncate_output| F[file_ops]
-        G -->|truncate_output| T[text_ops]
-        S[search_ops]
+        G[guardrails] -->|validate_path_safety / validate_read_path_safety / truncate_output| F[file_ops]
+        G -->|validate_read_path_safety / truncate_output| T[text_ops]
+        G -->|validate_read_path_safety / truncate_output| S[search_ops]
     end
     
     F -->|Safe Filesystem Mutation| OS[Operating System / Filesystem]
@@ -63,7 +63,9 @@ A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC 
 ## 🛡️ Key Safety Systems
 
 ### Water-Edge Path Defense
-Destructive operations validate target paths string-by-string. An attempt to modify or delete root `/`, working directory `.`, home `~`, empty values `""`, or wildcard patterns (`/*`, `/.*`) is blocked dynamically, alongside a fixed deny-list of critical system directories (`/etc`, `/usr`, `/bin`, `C:\Windows`, etc.) — subpaths beneath them remain permitted.
+Destructive operations (`validate_path_safety`) reject root `/`, home `~`, empty values `""`, or wildcard patterns (`/*`, `/.*`) by exact match, and reject the current working directory under *any* spelling that lexically collapses to it (`.`, `./`, `a/..`, ...) — a plain string comparison against `.` alone would miss those equivalent spellings, so `.`/`..` components are resolved lexically first (no disk access, so this also works for not-yet-existing mutation targets). Alongside these, a fixed deny-list of critical system directories (`/etc`, `/usr`, `/bin`, `C:\Windows`, etc.) is rejected — subpaths beneath them remain permitted.
+
+Read-only operations (`validate_read_path_safety`) share every check above *except* the current-directory rejection: `list_directory_contents`, `get_file_metadata`, and the read paths in `search_ops`/`text_ops` all permit `.` — several of them default to it — since reading or listing "here" cannot destroy anything the way a mutation could.
 
 **Optional workspace confinement**: setting `AI_WORKSPACE_ROOT` restricts every path-validated call to that directory (and its subdirectories); anything outside it, including via `../` traversal, is rejected. Off by default. As with everything else here, this is a mistake-prevention guard, not an adversarial boundary — see [Threat Model & Scope](#-threat-model--scope).
 
