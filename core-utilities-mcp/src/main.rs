@@ -1,118 +1,12 @@
-use core_utilities_mcp_lib::errors::CoreError;
-use core_utilities_mcp_lib::file_ops::{
-    copy_file_or_directory, create_directory, delete_file_or_directory, edit_file_content,
-    get_file_metadata, list_directory_contents, move_file_or_directory,
-};
-use core_utilities_mcp_lib::search_ops::{search_file_by_name_or_type, search_text_with_limit};
-use core_utilities_mcp_lib::sys_ops::{execute_command, get_system_context};
-use core_utilities_mcp_lib::text_ops::{
-    filter_and_sort_matrix_columns, query_json_by_path, read_file_with_limit,
-};
-use serde::{Deserialize, Serialize};
+mod dispatch;
+mod rpc_types;
+mod tools;
+
+use rpc_types::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, ToolCallParams};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{debug, info, warn};
 use tracing_subscriber::EnvFilter;
-
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-struct JsonRpcRequest {
-    jsonrpc: String,
-    id: Option<Value>,
-    method: String,
-    params: Option<Value>,
-}
-
-#[derive(Debug, Serialize)]
-struct JsonRpcResponse {
-    jsonrpc: String,
-    id: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    result: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<JsonRpcError>,
-}
-
-#[derive(Debug, Serialize)]
-struct JsonRpcError {
-    code: i32,
-    message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<Value>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ToolCallParams {
-    name: String,
-    arguments: Option<Value>,
-}
-
-// Arguments structs
-#[derive(Debug, Deserialize)]
-struct PathArgs {
-    path: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ListDirArgs {
-    path: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CopyMoveArgs {
-    source: String,
-    destination: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct EditFileArgs {
-    path: String,
-    start_line: usize,
-    end_line: usize,
-    target_content: String,
-    replacement_content: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReadArgs {
-    path: String,
-    start_offset: Option<usize>,
-    smart_boundary: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SearchTextArgs {
-    search_root_or_file: String,
-    query_string: String,
-    is_regex: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SearchFileArgs {
-    search_root: Option<String>,
-    name_pattern: Option<String>,
-    file_type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FilterSortArgs {
-    path: String,
-    columns: Vec<String>,
-    deduplicate: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-struct QueryJsonArgs {
-    path: String,
-    json_path: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ExecCmdArgs {
-    command: String,
-    working_directory: Option<String>,
-    timeout_seconds: Option<u64>,
-}
 
 /// Initializes a `tracing` subscriber that writes structured logs to
 /// stderr, controlled by `RUST_LOG` (defaulting to `info`). Logs must never
@@ -256,445 +150,13 @@ async fn process_line(line: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Routes a parsed request to its per-method handler by JSON-RPC `method`.
 async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
     let id = req.id.clone();
     match req.method.as_str() {
-        "initialize" => {
-            let result = serde_json::json!({
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "serverInfo": {
-                    "name": "core-utilities-mcp",
-                    "version": "0.1.0"
-                }
-            });
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id,
-                result: Some(result),
-                error: None,
-            }
-        }
-        "initialized" => JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id,
-            result: Some(serde_json::json!({})),
-            error: None,
-        },
-        "tools/list" => {
-            let tools = serde_json::json!({
-                "tools": [
-                    {
-                        "name": "list_directory_contents",
-                        "description": "Lists contents of a directory divided into files, directories, and links.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string", "description": "Target directory path." }
-                            }
-                        }
-                    },
-                    {
-                        "name": "get_file_metadata",
-                        "description": "Retrieves realpath, size, permissions, and modified timestamps for a path.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string" }
-                            },
-                            "required": ["path"]
-                        }
-                    },
-                    {
-                        "name": "copy_file_or_directory",
-                        "description": "Copy a file or folder recursively to a destination path.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "source": { "type": "string" },
-                                "destination": { "type": "string" }
-                            },
-                            "required": ["source", "destination"]
-                        }
-                    },
-                    {
-                        "name": "move_file_or_directory",
-                        "description": "Move a file or folder safely to a destination path.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "source": { "type": "string" },
-                                "destination": { "type": "string" }
-                            },
-                            "required": ["source", "destination"]
-                        }
-                    },
-                    {
-                        "name": "delete_file_or_directory",
-                        "description": "Safely delete a file or directory with path validations.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string" }
-                            },
-                            "required": ["path"]
-                        }
-                    },
-                    {
-                        "name": "create_directory",
-                        "description": "Creates a directory including intermediate parents (mkdir -p).",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string" }
-                            },
-                            "required": ["path"]
-                        }
-                    },
-                    {
-                        "name": "edit_file_content",
-                        "description": "Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content before replacement.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string", "description": "The file path to edit." },
-                                "start_line": { "type": "integer", "description": "1-indexed start line of the range to edit." },
-                                "end_line": { "type": "integer", "description": "1-indexed end line of the range to edit (inclusive)." },
-                                "target_content": { "type": "string", "description": "The exact content expected within the line range to prevent stale edits." },
-                                "replacement_content": { "type": "string", "description": "The replacement content." }
-                            },
-                            "required": ["path", "start_line", "end_line", "target_content", "replacement_content"]
-                        }
-                    },
-                    {
-                        "name": "read_file_with_limit",
-                        "description": "Read file contents starting from an optional offset, respecting character boundaries and limits.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string" },
-                                "start_offset": { "type": "integer" },
-                                "smart_boundary": { "type": "boolean" }
-                            },
-                            "required": ["path"]
-                        }
-                    },
-                    {
-                        "name": "search_text_with_limit",
-                        "description": "Performs high-efficiency regex or substring search on text files under a directory.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "search_root_or_file": { "type": "string" },
-                                "query_string": { "type": "string" },
-                                "is_regex": { "type": "boolean" }
-                            },
-                            "required": ["search_root_or_file", "query_string"]
-                        }
-                    },
-                    {
-                        "name": "search_file_by_name_or_type",
-                        "description": "Finds files or directories by name patterns or types under a root directory.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "search_root": { "type": "string" },
-                                "name_pattern": { "type": "string" },
-                                "file_type": { "type": "string", "enum": ["file", "directory", "dir", "symlink"] }
-                            }
-                        }
-                    },
-                    {
-                        "name": "filter_and_sort_matrix_columns",
-                        "description": "Filters, sorts, and optionally deduplicates columns from CSV/TSV data.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string" },
-                                "columns": { "type": "array", "items": { "type": "string" } },
-                                "deduplicate": { "type": "boolean" }
-                            },
-                            "required": ["path", "columns"]
-                        }
-                    },
-                    {
-                        "name": "query_json_by_path",
-                        "description": "Queries a JSON file using a path query syntax (e.g. data.users[0].id).",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "path": { "type": "string" },
-                                "json_path": { "type": "string" }
-                            },
-                            "required": ["path", "json_path"]
-                        }
-                    },
-                    {
-                        "name": "get_system_context",
-                        "description": "Aggregates system metadata, disk free space, user IDs, and environment parameters.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {}
-                        }
-                    },
-                    {
-                        "name": "execute_command",
-                        "description": "Runs a shell command with a wall-clock timeout and an output-size guard. Provides no filesystem, network, CPU, or memory isolation from the host, and neither the command nor working_directory are subject to path-safety validation.",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "command": { "type": "string" },
-                                "working_directory": { "type": "string", "description": "Directory to run the command in. Defaults to AI_WORKSPACE_ROOT if set, otherwise the server's own working directory." },
-                                "timeout_seconds": { "type": "integer", "description": "Wall-clock timeout in seconds (default 30, capped at 300)." }
-                            },
-                            "required": ["command"]
-                        }
-                    }
-                ]
-            });
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id,
-                result: Some(tools),
-                error: None,
-            }
-        }
-        "tools/call" => {
-            let params = match req.params {
-                Some(p) => p,
-                None => {
-                    return JsonRpcResponse {
-                        jsonrpc: "2.0".to_string(),
-                        id,
-                        result: None,
-                        error: Some(JsonRpcError {
-                            code: -32602,
-                            message: "Missing params".to_string(),
-                            data: None,
-                        }),
-                    };
-                }
-            };
-
-            let call_params: ToolCallParams = match serde_json::from_value(params) {
-                Ok(p) => p,
-                Err(e) => {
-                    return JsonRpcResponse {
-                        jsonrpc: "2.0".to_string(),
-                        id,
-                        result: None,
-                        error: Some(JsonRpcError {
-                            code: -32602,
-                            message: format!("Invalid params: {}", e),
-                            data: None,
-                        }),
-                    };
-                }
-            };
-
-            let tool_result = match call_params.name.as_str() {
-                "list_directory_contents" => {
-                    let args: ListDirArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(ListDirArgs { path: None });
-                    list_directory_contents(args.path).map(|v| v.to_string())
-                }
-                "get_file_metadata" => {
-                    let args: PathArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(PathArgs {
-                                path: String::new(),
-                            });
-                    get_file_metadata(&args.path).map(|v| v.to_string())
-                }
-                "copy_file_or_directory" => {
-                    let args: CopyMoveArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(CopyMoveArgs {
-                                source: String::new(),
-                                destination: String::new(),
-                            });
-                    copy_file_or_directory(&args.source, &args.destination)
-                        .map(|_| "Successfully copied targets.".to_string())
-                }
-                "move_file_or_directory" => {
-                    let args: CopyMoveArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(CopyMoveArgs {
-                                source: String::new(),
-                                destination: String::new(),
-                            });
-                    move_file_or_directory(&args.source, &args.destination)
-                        .map(|_| "Successfully moved targets.".to_string())
-                }
-                "delete_file_or_directory" => {
-                    let args: PathArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(PathArgs {
-                                path: String::new(),
-                            });
-                    delete_file_or_directory(&args.path)
-                        .map(|_| "Successfully deleted targets.".to_string())
-                }
-                "create_directory" => {
-                    let args: PathArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(PathArgs {
-                                path: String::new(),
-                            });
-                    create_directory(&args.path)
-                        .map(|_| "Successfully created directory.".to_string())
-                }
-                "edit_file_content" => {
-                    let args_res: Result<EditFileArgs, _> =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null));
-                    match args_res {
-                        Ok(args) => edit_file_content(
-                            &args.path,
-                            args.start_line,
-                            args.end_line,
-                            &args.target_content,
-                            &args.replacement_content,
-                        )
-                        .map(|v| v.to_string()),
-                        Err(e) => Err(CoreError::Parsing(format!(
-                            "Invalid arguments for edit_file_content: {}",
-                            e
-                        ))),
-                    }
-                }
-                "read_file_with_limit" => {
-                    let args: ReadArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(ReadArgs {
-                                path: String::new(),
-                                start_offset: None,
-                                smart_boundary: None,
-                            });
-                    read_file_with_limit(&args.path, args.start_offset, args.smart_boundary)
-                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
-                }
-                "search_text_with_limit" => {
-                    let args: SearchTextArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(SearchTextArgs {
-                                search_root_or_file: String::new(),
-                                query_string: String::new(),
-                                is_regex: None,
-                            });
-                    search_text_with_limit(
-                        &args.search_root_or_file,
-                        &args.query_string,
-                        args.is_regex,
-                    )
-                    .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
-                }
-                "search_file_by_name_or_type" => {
-                    let args: SearchFileArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(SearchFileArgs {
-                                search_root: None,
-                                name_pattern: None,
-                                file_type: None,
-                            });
-                    search_file_by_name_or_type(
-                        args.search_root.as_deref(),
-                        args.name_pattern.as_deref(),
-                        args.file_type.as_deref(),
-                    )
-                    .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
-                }
-                "filter_and_sort_matrix_columns" => {
-                    let args: FilterSortArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(FilterSortArgs {
-                                path: String::new(),
-                                columns: Vec::new(),
-                                deduplicate: None,
-                            });
-                    filter_and_sort_matrix_columns(&args.path, args.columns, args.deduplicate)
-                        .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
-                }
-                "query_json_by_path" => {
-                    let args: QueryJsonArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(QueryJsonArgs {
-                                path: String::new(),
-                                json_path: String::new(),
-                            });
-                    query_json_by_path(&args.path, &args.json_path).map(|v| v.to_string())
-                }
-                "get_system_context" => get_system_context().map(|v| v.to_string()),
-                "execute_command" => {
-                    let args: ExecCmdArgs =
-                        serde_json::from_value(call_params.arguments.unwrap_or(Value::Null))
-                            .unwrap_or(ExecCmdArgs {
-                                command: String::new(),
-                                working_directory: None,
-                                timeout_seconds: None,
-                            });
-                    match execute_command(
-                        &args.command,
-                        args.working_directory.as_deref(),
-                        args.timeout_seconds,
-                    )
-                    .await
-                    {
-                        Ok(v) => Ok(v.to_string()),
-                        Err(e) => Err(e),
-                    }
-                }
-                _ => Err(CoreError::General(format!(
-                    "Method not found: {}",
-                    call_params.name
-                ))),
-            };
-
-            match tool_result {
-                Ok(msg) => {
-                    let content = serde_json::json!({
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": msg
-                            }
-                        ]
-                    });
-                    JsonRpcResponse {
-                        jsonrpc: "2.0".to_string(),
-                        id,
-                        result: Some(content),
-                        error: None,
-                    }
-                }
-                Err(e) => {
-                    warn!(
-                        tool = %call_params.name,
-                        error_type = e.category(),
-                        error = %e,
-                        "tool call failed"
-                    );
-                    let content = serde_json::json!({
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": format!("Error: {}", e),
-                                "error_type": e.category()
-                            }
-                        ],
-                        "isError": true
-                    });
-                    JsonRpcResponse {
-                        jsonrpc: "2.0".to_string(),
-                        id,
-                        result: Some(content),
-                        error: None,
-                    }
-                }
-            }
-        }
+        "initialize" | "initialized" => handle_initialize(id),
+        "tools/list" => handle_tools_list(id),
+        "tools/call" => handle_tools_call(id, req.params).await,
         _ => JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
             id,
@@ -706,4 +168,55 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
             }),
         },
     }
+}
+
+/// Handles both `initialize` (advertises protocol version, capabilities,
+/// and server info) and `initialized` (acknowledged with an empty result)
+/// — the two handshake notifications an MCP client sends before its first
+/// real request.
+fn handle_initialize(id: Option<Value>) -> JsonRpcResponse {
+    let result = serde_json::json!({
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+            "tools": {}
+        },
+        "serverInfo": {
+            "name": "core-utilities-mcp",
+            "version": "0.1.0"
+        }
+    });
+    JsonRpcResponse {
+        jsonrpc: "2.0".to_string(),
+        id,
+        result: Some(result),
+        error: None,
+    }
+}
+
+/// Handles `tools/list` by wrapping [`tools::tool_definitions`] in the
+/// expected `{"tools": [...]}` envelope.
+fn handle_tools_list(id: Option<Value>) -> JsonRpcResponse {
+    JsonRpcResponse {
+        jsonrpc: "2.0".to_string(),
+        id,
+        result: Some(serde_json::json!({ "tools": tools::tool_definitions() })),
+        error: None,
+    }
+}
+
+/// Handles `tools/call`: validates `params` is present and parses as
+/// [`ToolCallParams`], then delegates to [`dispatch::dispatch_tool_call`]
+/// and wraps the outcome via [`dispatch::build_tool_call_response`].
+async fn handle_tools_call(id: Option<Value>, params: Option<Value>) -> JsonRpcResponse {
+    let Some(params) = params else {
+        return dispatch::missing_params_response(id);
+    };
+
+    let call_params: ToolCallParams = match serde_json::from_value(params) {
+        Ok(p) => p,
+        Err(e) => return dispatch::invalid_params_response(id, e),
+    };
+
+    let tool_result = dispatch::dispatch_tool_call(&call_params.name, call_params.arguments).await;
+    dispatch::build_tool_call_response(id, &call_params.name, tool_result)
 }

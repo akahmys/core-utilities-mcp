@@ -18,12 +18,17 @@ core-utilities-mcp/
 │   └── src/
 │       ├── lib.rs              # Public entry point and shared interfaces
 │       ├── guardrails/         # Character limits, safety boundaries, path validation
-│       ├── file_ops/           # File and directory manipulation (cp, mv, rm, mkdir, list, stat)
+│       ├── file_ops/           # Read/delete/list/stat; mutate.rs holds copy/move/create/edit
 │       ├── search_ops/         # High-efficiency finder and grep operations
-│       └── text_ops/           # Pagination, parsing, structural extraction
+│       ├── text_ops/           # Pagination, parsing, structured-data querying
+│       └── sys_ops/            # System introspection and shell command execution
 └── core-utilities-mcp/         # [Wrapper] MCP Server implementation (depends on core-utilities-mcp-lib)
     ├── Cargo.toml
-    └── src/main.rs             # JSON-RPC MCP handlers wrapping the core library
+    └── src/
+        ├── main.rs             # Entry point, stdin/stdout JSON-RPC loop, per-method routing
+        ├── rpc_types.rs        # JSON-RPC envelope and per-tool argument structs
+        ├── tools.rs            # tools/list schema definitions
+        └── dispatch.rs         # tools/call: resolves a tool name to its lib function
 ```
 
 ---

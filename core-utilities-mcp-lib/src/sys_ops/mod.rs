@@ -8,7 +8,7 @@ use std::process::Stdio;
 use std::time::Duration;
 use sysinfo::{Disks, System};
 use tokio::io::AsyncReadExt;
-use tokio::process::Command;
+use tokio::process::{Child, ChildStderr, ChildStdout, Command};
 
 /// Timeout applied when a call doesn't specify `timeout_seconds` and
 /// `AI_COMMAND_TIMEOUT_SECONDS` is unset.
@@ -157,56 +157,8 @@ pub async fn execute_command(
 
     let workspace_root = std::env::var("AI_WORKSPACE_ROOT").ok();
     let cwd = working_directory.or(workspace_root.as_deref());
-
-    let mut child = build_command(command, cwd)
-        .spawn()
-        .map_err(|e| CoreError::Process(format!("Failed to spawn command: {}", e)))?;
-
-    let mut stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| CoreError::Process("Failed to open stdout pipe".to_string()))?;
-    let mut stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| CoreError::Process("Failed to open stderr pipe".to_string()))?;
-
+    let (mut child, stdout, stderr) = spawn_with_pipes(command, cwd)?;
     let timeout_duration = resolve_timeout(timeout_seconds);
-
-    // Futures to read output
-    let mut stdout_buf = Vec::new();
-    let mut stderr_buf = Vec::new();
-
-    let child_ref = &mut child;
-
-    let read_fut = async {
-        let mut stdout_chunk = [0; 1024];
-        let mut stderr_chunk = [0; 1024];
-        loop {
-            tokio::select! {
-                res = stdout.read(&mut stdout_chunk) => {
-                    match res {
-                        Ok(0) | Err(_) => break,
-                        Ok(n) => {
-                            stdout_buf.extend_from_slice(&stdout_chunk[..n]);
-                            if stdout_buf.len() > limit * 4 { // Hard byte limit safeguard
-                                let _ = child_ref.kill().await;
-                                break;
-                            }
-                        }
-                    }
-                }
-                res = stderr.read(&mut stderr_chunk) => {
-                    match res {
-                        Ok(0) | Err(_) => break,
-                        Ok(n) => {
-                            stderr_buf.extend_from_slice(&stderr_chunk[..n]);
-                        }
-                    }
-                }
-            }
-        }
-    };
 
     tokio::select! {
         _ = tokio::time::sleep(timeout_duration) => {
@@ -217,23 +169,91 @@ pub async fn execute_command(
                 MAX_TIMEOUT_SECS
             )))
         }
-        _ = read_fut => {
+        (stdout_buf, stderr_buf) = read_output_streams(&mut child, stdout, stderr, limit * 4) => {
             let status = child.wait().await.map_err(|e| CoreError::Process(format!("Failed to wait for child: {}", e)))?;
-
-            let stdout_str = String::from_utf8_lossy(&stdout_buf).into_owned();
-            let stderr_str = String::from_utf8_lossy(&stderr_buf).into_owned();
-
-            let truncated_stdout = truncate_output(&stdout_str);
-
-            Ok(json!({
-                "exit_code": status.code().unwrap_or(-1),
-                "stdout": truncated_stdout.content,
-                "status": truncated_stdout.status,
-                "next_offset": truncated_stdout.next_offset,
-                "stderr": stderr_str
-            }))
+            Ok(build_command_result(status.code().unwrap_or(-1), &stdout_buf, &stderr_buf))
         }
     }
+}
+
+/// Spawns `command` in a shell with piped stdout/stderr, returning the
+/// running child together with the taken pipe handles (never `None` for a
+/// freshly spawned child with piped stdio, but `Child::stdout`/`stderr` are
+/// typed as `Option` since they're also `None` after being taken once).
+fn spawn_with_pipes(
+    command: &str,
+    cwd: Option<&str>,
+) -> CoreResult<(Child, ChildStdout, ChildStderr)> {
+    let mut child = build_command(command, cwd)
+        .spawn()
+        .map_err(|e| CoreError::Process(format!("Failed to spawn command: {}", e)))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| CoreError::Process("Failed to open stdout pipe".to_string()))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| CoreError::Process("Failed to open stderr pipe".to_string()))?;
+    Ok((child, stdout, stderr))
+}
+
+/// Assembles `execute_command`'s JSON result from the process exit code and
+/// raw stdout/stderr byte buffers, applying the standard
+/// [`truncate_output`](crate::guardrails::truncate_output) limit to stdout.
+fn build_command_result(exit_code: i32, stdout_buf: &[u8], stderr_buf: &[u8]) -> Value {
+    let truncated_stdout = truncate_output(&String::from_utf8_lossy(stdout_buf));
+    json!({
+        "exit_code": exit_code,
+        "stdout": truncated_stdout.content,
+        "status": truncated_stdout.status,
+        "next_offset": truncated_stdout.next_offset,
+        "stderr": String::from_utf8_lossy(stderr_buf)
+    })
+}
+
+/// Concurrently drains `child`'s `stdout`/`stderr` into buffers until both
+/// streams close (EOF or a read error), killing `child` early if buffered
+/// stdout exceeds `byte_limit` — a hard safeguard independent of the
+/// caller's wall-clock timeout, since a command that never stops producing
+/// output would otherwise grow these buffers unbounded.
+async fn read_output_streams(
+    child: &mut Child,
+    mut stdout: ChildStdout,
+    mut stderr: ChildStderr,
+    byte_limit: usize,
+) -> (Vec<u8>, Vec<u8>) {
+    let mut stdout_buf = Vec::new();
+    let mut stderr_buf = Vec::new();
+    let mut stdout_chunk = [0; 1024];
+    let mut stderr_chunk = [0; 1024];
+
+    loop {
+        tokio::select! {
+            res = stdout.read(&mut stdout_chunk) => {
+                match res {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        stdout_buf.extend_from_slice(&stdout_chunk[..n]);
+                        if stdout_buf.len() > byte_limit {
+                            let _ = child.kill().await;
+                            break;
+                        }
+                    }
+                }
+            }
+            res = stderr.read(&mut stderr_chunk) => {
+                match res {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        stderr_buf.extend_from_slice(&stderr_chunk[..n]);
+                    }
+                }
+            }
+        }
+    }
+
+    (stdout_buf, stderr_buf)
 }
 
 #[cfg(test)]

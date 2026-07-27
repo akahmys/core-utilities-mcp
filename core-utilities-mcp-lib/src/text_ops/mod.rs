@@ -93,6 +93,28 @@ pub fn filter_and_sort_matrix_columns(
         .delimiter(if is_tsv { b'\t' } else { b',' })
         .from_reader(file);
 
+    let col_indices = resolve_column_indices(&mut reader, &columns, path)?;
+    let mut rows = read_filtered_rows(&mut reader, &col_indices)?;
+    if deduplicate.unwrap_or(false) {
+        rows.sort();
+        rows.dedup();
+    } else {
+        rows.sort(); // Always sort as per spec
+    }
+
+    Ok(truncate_output(&format_matrix_output(
+        &columns, &rows, is_tsv,
+    )))
+}
+
+/// Resolves `columns` (requested header names) to their indices in
+/// `reader`'s header row, in the order requested. Errors with the actual
+/// headers present if none of `columns` match.
+fn resolve_column_indices<R: std::io::Read>(
+    reader: &mut csv::Reader<R>,
+    columns: &[String],
+    path: &str,
+) -> CoreResult<Vec<usize>> {
     let headers = reader
         .headers()
         .map_err(|e| CoreError::Parsing(format!("Failed to read CSV headers: {}", e)))?
@@ -111,6 +133,15 @@ pub fn filter_and_sort_matrix_columns(
         )));
     }
 
+    Ok(col_indices)
+}
+
+/// Reads every record from `reader`, keeping only the fields at `col_indices`
+/// (in that order) from each row.
+fn read_filtered_rows<R: std::io::Read>(
+    reader: &mut csv::Reader<R>,
+    col_indices: &[usize],
+) -> CoreResult<Vec<Vec<String>>> {
     let mut rows = Vec::new();
     for result in reader.records() {
         let record =
@@ -121,26 +152,20 @@ pub fn filter_and_sort_matrix_columns(
             .collect();
         rows.push(filtered_row);
     }
+    Ok(rows)
+}
 
-    if deduplicate.unwrap_or(false) {
-        rows.sort();
-        rows.dedup();
-    } else {
-        rows.sort(); // Always sort as per spec
-    }
-
-    let mut output = String::new();
-    // Headers
-    let header_line = columns.join(if is_tsv { "\t" } else { "," });
-    output.push_str(&header_line);
+/// Joins `columns` as a header line followed by one delimiter-joined line per
+/// row, using tabs when `is_tsv` else commas.
+fn format_matrix_output(columns: &[String], rows: &[Vec<String>], is_tsv: bool) -> String {
+    let delimiter = if is_tsv { "\t" } else { "," };
+    let mut output = columns.join(delimiter);
     output.push('\n');
-
     for row in rows {
-        output.push_str(&row.join(if is_tsv { "\t" } else { "," }));
+        output.push_str(&row.join(delimiter));
         output.push('\n');
     }
-
-    Ok(truncate_output(&output))
+    output
 }
 
 /// Reads the JSON file at `path` and resolves `json_path`, a dot-separated
@@ -175,10 +200,20 @@ pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
     let json_data: Value = serde_json::from_str(&content)
         .map_err(|e| CoreError::Parsing(format!("Failed to parse JSON: {}", e)))?;
 
-    // Convert path like "data.users[0].id" to json pointer "/data/users/0/id"
+    let pointer = dot_path_to_json_pointer(json_path);
+    match json_data.pointer(&pointer) {
+        Some(value) => Ok(value.clone()),
+        None => Err(CoreError::General(describe_pointer_resolution_failure(
+            &json_data, &pointer, json_path,
+        ))),
+    }
+}
+
+/// Converts a dot-separated path with optional bracket indices (e.g.
+/// `"data.users[0].id"`) into a JSON pointer (`"/data/users/0/id"`).
+fn dot_path_to_json_pointer(json_path: &str) -> String {
     let mut pointer = String::new();
-    let parts = json_path.split('.');
-    for part in parts {
+    for part in json_path.split('.') {
         if part.contains('[') && part.contains(']') {
             let base = part.split('[').next().unwrap_or("");
             let index = part
@@ -197,16 +232,20 @@ pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
             pointer.push_str(part);
         }
     }
+    pointer
+}
 
-    if let Some(value) = json_data.pointer(&pointer) {
-        return Ok(value.clone());
-    }
-
-    // Walk the pointer segment by segment to report exactly where
-    // resolution broke and what's available there — a bare "not found"
-    // gives an LLM nothing to correct `json_path` with.
+/// Walks `pointer` segment by segment against `json_data` to report exactly
+/// where resolution broke and what's available there — a bare "not found"
+/// gives an LLM nothing to correct `json_path` (the original dot-path
+/// syntax, used only for the message) with.
+fn describe_pointer_resolution_failure(
+    json_data: &Value,
+    pointer: &str,
+    json_path: &str,
+) -> String {
     let mut resolved_pointer = String::new();
-    let mut current = &json_data;
+    let mut current = json_data;
     for segment in pointer.split('/').filter(|s| !s.is_empty()) {
         let next_pointer = format!("{}/{}", resolved_pointer, segment);
         match json_data.pointer(&next_pointer) {
@@ -233,10 +272,10 @@ pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
         &resolved_pointer
     };
 
-    Err(CoreError::General(format!(
+    format!(
         "Path '{}' not found in JSON object — resolution stopped at '{}', which is {}",
         json_path, location, available
-    )))
+    )
 }
 
 #[cfg(test)]
