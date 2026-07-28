@@ -1,6 +1,6 @@
 [package]
 name = "core-utilities-mcp-lib"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["core-utilities-mcp team"]
 description = "Core library for AI-optimized command toolkit (ACI)"

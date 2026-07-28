@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
             println!("  AI_COMMAND_MAX_CHARACTERS  Maximum characters returned in output (default: 8192)");
             return Ok(());
         } else if arg == "-v" || arg == "--version" {
-            println!("core-utilities-mcp 0.1.0");
+            println!("core-utilities-mcp 1.0.0");
             return Ok(());
         }
     }
@@ -182,7 +182,7 @@ fn handle_initialize(id: Option<Value>) -> JsonRpcResponse {
         },
         "serverInfo": {
             "name": "core-utilities-mcp",
-            "version": "0.1.0"
+            "version": "1.0.0"
         }
     });
     JsonRpcResponse {

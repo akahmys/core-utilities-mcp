@@ -1,6 +1,6 @@
 [package]
 name = "core-utilities-mcp"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["core-utilities-mcp team"]
 description = "MCP server wrapper for core-utilities-mcp-lib"
