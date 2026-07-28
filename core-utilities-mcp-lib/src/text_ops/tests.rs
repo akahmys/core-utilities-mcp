@@ -13,7 +13,7 @@ fn test_read_file_within_limit() {
     writeln!(file, "world").unwrap();
 
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "50");
-    let res = read_file_with_limit(file_path.to_str().unwrap(), None, None).unwrap();
+    let res = read_file_with_limit(file_path.to_str().unwrap(), None).unwrap();
     assert_eq!(res.content, "hello\nworld\n");
     assert_eq!(res.status, "success");
     assert_eq!(res.next_offset, None);
@@ -29,7 +29,7 @@ fn test_read_file_with_offset_and_truncation() {
     writeln!(file, "world").unwrap();
 
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "4");
-    let res = read_file_with_limit(file_path.to_str().unwrap(), Some(6), None).unwrap();
+    let res = read_file_with_limit(file_path.to_str().unwrap(), Some(6)).unwrap();
     assert_eq!(res.content, "worl");
     assert_eq!(res.status, "truncated");
     assert_eq!(res.next_offset, Some(10));

@@ -22,15 +22,11 @@ use std::path::Path;
 /// ```no_run
 /// use core_utilities_mcp_lib::text_ops::read_file_with_limit;
 ///
-/// let page = read_file_with_limit("README.md", None, None)?;
+/// let page = read_file_with_limit("README.md", None)?;
 /// println!("{}", page.content);
 /// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
 /// ```
-pub fn read_file_with_limit(
-    path: &str,
-    start_offset: Option<usize>,
-    _smart_boundary: Option<bool>,
-) -> CoreResult<TruncateResult> {
+pub fn read_file_with_limit(path: &str, start_offset: Option<usize>) -> CoreResult<TruncateResult> {
     validate_read_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {

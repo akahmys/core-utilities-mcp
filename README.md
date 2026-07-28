@@ -112,8 +112,6 @@ AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
 15. `execute_command`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
-
-
 ---
 
 ## ⚡ Setup & Test
@@ -125,7 +123,7 @@ cargo test --all
 ```
 
 ### Continuous Integration
-Every push and pull request to `main` runs `scripts/check_secrets.sh --all`, `scripts/check_licenses.py`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, and `cargo test` via [GitHub Actions](.github/workflows/ci.yml).
+Every push and pull request to `main` runs `scripts/check_secrets.sh --all`, `scripts/check_licenses.py`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings -D clippy::pedantic`, `cargo build`, and `cargo test` via [GitHub Actions](.github/workflows/ci.yml).
 
 ### Git Hooks
 `scripts/check_secrets.sh` also runs locally as a pre-commit hook (staged changes only), catching secrets and absolute paths before they're ever committed — CI can only catch them after the fact, once they're already in history. The hook lives in `.githooks/` (tracked in git) rather than `.git/hooks/` (which isn't), so it needs a one-time opt-in per clone:

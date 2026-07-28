@@ -113,8 +113,7 @@ pub fn tool_definitions() -> Value {
                 "type": "object",
                 "properties": {
                     "path": { "type": "string" },
-                    "start_offset": { "type": "integer" },
-                    "smart_boundary": { "type": "boolean" }
+                    "start_offset": { "type": "integer" }
                 },
                 "required": ["path"]
             }

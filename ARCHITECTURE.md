@@ -41,11 +41,13 @@ graph TD
         G[guardrails] -->|validate_path_safety / validate_read_path_safety / truncate_output| F[file_ops]
         G -->|validate_read_path_safety / truncate_output| T[text_ops]
         G -->|validate_read_path_safety / truncate_output| S[search_ops]
+        G -->|truncate_output| SYS[sys_ops]
     end
     
     F -->|Safe Filesystem Mutation| OS[Operating System / Filesystem]
     T -->|Line Windowing & Parse| OS
     S -->|Pattern Finder / Walkdir| OS
+    SYS -->|Shell Execution / System Introspection| OS
 ```
 
 ### 1. `core-utilities-mcp-lib` (Core Library Engine)
@@ -54,6 +56,7 @@ Decoupled logic without process boundaries. Organized into:
 - `file_ops`: High-performance filesystem operations utilizing native Rust APIs.
 - `search_ops`: High-efficiency grep and find implementations.
 - `text_ops`: Utilities for pagination, line-windowing, and structured extraction.
+- `sys_ops`: System introspection (`get_system_context`) and unsandboxed shell execution (`execute_command`); see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command) below.
 
 ### 2. `core-utilities-mcp` (External Protocol Wrapper)
 A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC requests, parses input into strongly-typed Rust structures, executes them via `core-utilities-mcp-lib`, and outputs structured JSON responses.

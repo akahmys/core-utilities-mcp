@@ -103,9 +103,8 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             let args: ReadArgs = serde_json::from_value(args).unwrap_or(ReadArgs {
                 path: String::new(),
                 start_offset: None,
-                smart_boundary: None,
             });
-            read_file_with_limit(&args.path, args.start_offset, args.smart_boundary)
+            read_file_with_limit(&args.path, args.start_offset)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
         "search_text_with_limit" => {

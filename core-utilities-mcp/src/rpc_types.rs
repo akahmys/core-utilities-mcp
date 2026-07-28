@@ -78,7 +78,6 @@ pub struct EditFileArgs {
 pub struct ReadArgs {
     pub path: String,
     pub start_offset: Option<usize>,
-    pub smart_boundary: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
