@@ -31,6 +31,7 @@ pub enum CoreError {
 }
 
 impl CoreError {
+    #[must_use]
     pub fn category(&self) -> &'static str {
         match self {
             CoreError::Io(_) => "IO",

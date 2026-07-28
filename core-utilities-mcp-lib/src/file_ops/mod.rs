@@ -38,15 +38,15 @@ pub fn delete_file_or_directory(path: &str) -> CoreResult<()> {
 
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(CoreError::File(format!("Target does not exist: {}", path)));
+        return Err(CoreError::File(format!("Target does not exist: {path}")));
     }
 
     if path_buf.is_dir() {
         std::fs::remove_dir_all(path_buf)
-            .map_err(|e| CoreError::File(format!("Failed to delete directory: {}", e)))
+            .map_err(|e| CoreError::File(format!("Failed to delete directory: {e}")))
     } else {
         std::fs::remove_file(path_buf)
-            .map_err(|e| CoreError::File(format!("Failed to delete file: {}", e)))
+            .map_err(|e| CoreError::File(format!("Failed to delete file: {e}")))
     }
 }
 
@@ -72,8 +72,7 @@ pub fn list_directory_contents(path: Option<String>) -> CoreResult<Value> {
     let target_path = Path::new(&target_path_str);
     if !target_path.is_dir() {
         return Err(CoreError::File(format!(
-            "Path is not a directory: {}",
-            target_path_str
+            "Path is not a directory: {target_path_str}"
         )));
     }
 
@@ -82,13 +81,13 @@ pub fn list_directory_contents(path: Option<String>) -> CoreResult<Value> {
     let mut links = Vec::new();
 
     let entries = std::fs::read_dir(target_path)
-        .map_err(|e| CoreError::File(format!("Failed to read directory: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to read directory: {e}")))?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| CoreError::File(format!("Failed to read entry: {}", e)))?;
+        let entry = entry.map_err(|e| CoreError::File(format!("Failed to read entry: {e}")))?;
         let file_type = entry
             .file_type()
-            .map_err(|e| CoreError::File(format!("Failed to get file type: {}", e)))?;
+            .map_err(|e| CoreError::File(format!("Failed to get file type: {e}")))?;
         let name = entry.file_name().to_string_lossy().into_owned();
 
         if file_type.is_symlink() {
@@ -128,14 +127,14 @@ pub fn get_file_metadata(path: &str) -> CoreResult<Value> {
 
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(CoreError::File(format!("Path does not exist: {}", path)));
+        return Err(CoreError::File(format!("Path does not exist: {path}")));
     }
 
     let metadata = std::fs::metadata(path_buf)
-        .map_err(|e| CoreError::File(format!("Failed to retrieve metadata: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to retrieve metadata: {e}")))?;
 
     let absolute_path = std::fs::canonicalize(path_buf)
-        .map_err(|e| CoreError::File(format!("Failed to resolve absolute path: {}", e)))?
+        .map_err(|e| CoreError::File(format!("Failed to resolve absolute path: {e}")))?
         .to_string_lossy()
         .into_owned();
 
@@ -161,8 +160,7 @@ pub fn get_file_metadata(path: &str) -> CoreResult<Value> {
 fn epoch_secs(time: std::io::Result<SystemTime>) -> u64 {
     time.ok()
         .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+        .map_or(0, |d| d.as_secs())
 }
 
 #[cfg(test)]

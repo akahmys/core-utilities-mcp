@@ -74,6 +74,6 @@ fn test_resolve_timeout_defaults_and_clamps() {
     assert_eq!(resolve_timeout(Some(0)), Duration::from_secs(1));
 
     std::env::set_var("AI_COMMAND_TIMEOUT_SECONDS", "60");
-    assert_eq!(resolve_timeout(None), Duration::from_secs(60));
+    assert_eq!(resolve_timeout(None), Duration::from_mins(1));
     std::env::remove_var("AI_COMMAND_TIMEOUT_SECONDS");
 }

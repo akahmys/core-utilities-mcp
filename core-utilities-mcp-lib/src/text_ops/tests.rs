@@ -49,7 +49,7 @@ fn test_filter_and_sort_matrix_columns() {
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "1000");
     let res = filter_and_sort_matrix_columns(
         file_path.to_str().unwrap(),
-        vec!["name".to_string(), "id".to_string()],
+        &["name".to_string(), "id".to_string()],
         Some(true),
     )
     .unwrap();
@@ -86,7 +86,7 @@ fn test_filter_and_sort_matrix_columns_no_matching_columns() {
     std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "1000");
     let err = filter_and_sort_matrix_columns(
         file_path.to_str().unwrap(),
-        vec!["nonexistent".to_string()],
+        &["nonexistent".to_string()],
         None,
     )
     .unwrap_err();

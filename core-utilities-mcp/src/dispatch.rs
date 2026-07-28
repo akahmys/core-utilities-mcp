@@ -32,7 +32,9 @@ use tracing::warn;
 /// three-line "deserialize, call, stringify" shape repeated for every tool,
 /// so splitting it would scatter one dispatch table across many
 /// one-tool-each functions for no readability gain — exactly what that
-/// guidance's own anti-fragmentation clause warns against.
+/// guidance's own anti-fragmentation clause warns against. Same rationale
+/// for `#[allow(clippy::too_many_lines)]`.
+#[allow(clippy::too_many_lines)]
 pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreResult<String> {
     let args = arguments.unwrap_or(Value::Null);
     match name {
@@ -53,7 +55,7 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
                 destination: String::new(),
             });
             copy_file_or_directory(&args.source, &args.destination)
-                .map(|_| "Successfully copied targets.".to_string())
+                .map(|()| "Successfully copied targets.".to_string())
         }
         "move_file_or_directory" => {
             let args: CopyMoveArgs = serde_json::from_value(args).unwrap_or(CopyMoveArgs {
@@ -61,28 +63,27 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
                 destination: String::new(),
             });
             move_file_or_directory(&args.source, &args.destination)
-                .map(|_| "Successfully moved targets.".to_string())
+                .map(|()| "Successfully moved targets.".to_string())
         }
         "delete_file_or_directory" => {
             let args: PathArgs = serde_json::from_value(args).unwrap_or(PathArgs {
                 path: String::new(),
             });
             delete_file_or_directory(&args.path)
-                .map(|_| "Successfully deleted targets.".to_string())
+                .map(|()| "Successfully deleted targets.".to_string())
         }
         "create_directory" => {
             let args: PathArgs = serde_json::from_value(args).unwrap_or(PathArgs {
                 path: String::new(),
             });
-            create_directory(&args.path).map(|_| "Successfully created directory.".to_string())
+            create_directory(&args.path).map(|()| "Successfully created directory.".to_string())
         }
         "write_file" => match serde_json::from_value::<WriteFileArgs>(args) {
             Ok(args) => {
                 write_file(&args.path, &args.content, args.overwrite).map(|v| v.to_string())
             }
             Err(e) => Err(CoreError::Parsing(format!(
-                "Invalid arguments for write_file: {}",
-                e
+                "Invalid arguments for write_file: {e}"
             ))),
         },
         "edit_file_content" => match serde_json::from_value::<EditFileArgs>(args) {
@@ -95,8 +96,7 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             )
             .map(|v| v.to_string()),
             Err(e) => Err(CoreError::Parsing(format!(
-                "Invalid arguments for edit_file_content: {}",
-                e
+                "Invalid arguments for edit_file_content: {e}"
             ))),
         },
         "read_file_with_limit" => {
@@ -136,7 +136,7 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
                 columns: Vec::new(),
                 deduplicate: None,
             });
-            filter_and_sort_matrix_columns(&args.path, args.columns, args.deduplicate)
+            filter_and_sort_matrix_columns(&args.path, &args.columns, args.deduplicate)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
         "query_json_by_path" => {
@@ -161,7 +161,7 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             .await
             .map(|v| v.to_string())
         }
-        _ => Err(CoreError::General(format!("Method not found: {}", name))),
+        _ => Err(CoreError::General(format!("Method not found: {name}"))),
     }
 }
 
@@ -222,14 +222,14 @@ pub fn missing_params_response(id: Option<Value>) -> JsonRpcResponse {
 
 /// Builds the `-32602` "invalid params" error response used when
 /// `tools/call`'s `params` doesn't deserialize into [`crate::rpc_types::ToolCallParams`].
-pub fn invalid_params_response(id: Option<Value>, error: serde_json::Error) -> JsonRpcResponse {
+pub fn invalid_params_response(id: Option<Value>, error: &serde_json::Error) -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0".to_string(),
         id,
         result: None,
         error: Some(JsonRpcError {
             code: -32602,
-            message: format!("Invalid params: {}", error),
+            message: format!("Invalid params: {error}"),
             data: None,
         }),
     }

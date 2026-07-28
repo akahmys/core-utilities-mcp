@@ -25,7 +25,7 @@ impl TestServer {
 
     fn write_raw(&mut self, raw: &str) {
         let stdin = self.child.stdin.as_mut().expect("stdin was not piped");
-        writeln!(stdin, "{}", raw).expect("failed to write request line");
+        writeln!(stdin, "{raw}").expect("failed to write request line");
     }
 
     fn read_raw(&mut self) -> String {
@@ -56,10 +56,7 @@ impl TestServer {
             }
             if start.elapsed() > timeout {
                 let _ = self.child.kill();
-                panic!(
-                    "server did not exit within {:?} after stdin closed",
-                    timeout
-                );
+                panic!("server did not exit within {timeout:?} after stdin closed");
             }
             std::thread::sleep(Duration::from_millis(20));
         }

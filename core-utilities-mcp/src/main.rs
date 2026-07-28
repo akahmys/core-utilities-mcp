@@ -58,7 +58,7 @@ async fn run_server() -> anyhow::Result<()> {
     loop {
         tokio::select! {
             biased;
-            _ = shutdown_signal() => {
+            () = shutdown_signal() => {
                 info!("shutdown signal received; core-utilities-mcp shutting down");
                 // `tokio::io::stdin()` reads via a dedicated blocking OS
                 // thread; if it is still parked in a blocking read (the
@@ -106,8 +106,8 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 }
 
@@ -130,7 +130,7 @@ async fn process_line(line: &str) -> anyhow::Result<()> {
                 result: None,
                 error: Some(JsonRpcError {
                     code: -32700,
-                    message: format!("Parse error: {}", e),
+                    message: format!("Parse error: {e}"),
                     data: None,
                 }),
             };
@@ -214,7 +214,7 @@ async fn handle_tools_call(id: Option<Value>, params: Option<Value>) -> JsonRpcR
 
     let call_params: ToolCallParams = match serde_json::from_value(params) {
         Ok(p) => p,
-        Err(e) => return dispatch::invalid_params_response(id, e),
+        Err(e) => return dispatch::invalid_params_response(id, &e),
     };
 
     let tool_result = dispatch::dispatch_tool_call(&call_params.name, call_params.arguments).await;

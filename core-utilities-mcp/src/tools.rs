@@ -6,6 +6,9 @@
 use serde_json::{json, Value};
 
 /// Returns the JSON array of tool definitions advertised by `tools/list`.
+// Same "single data table" rationale as the module doc for
+// `#[allow(clippy::too_many_lines)]`: it's one JSON literal, not logic.
+#[allow(clippy::too_many_lines)]
 pub fn tool_definitions() -> Value {
     json!([
         {

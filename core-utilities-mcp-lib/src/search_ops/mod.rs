@@ -44,13 +44,12 @@ pub fn search_text_with_limit(
     let path = Path::new(search_root_or_file);
     if !path.exists() {
         return Err(CoreError::File(format!(
-            "Search root/file does not exist: {}",
-            search_root_or_file
+            "Search root/file does not exist: {search_root_or_file}"
         )));
     }
 
-    let matches = find_matches(&collect_files_to_scan(path), matcher.as_ref());
-    let payload = serde_json::to_string_pretty(&matches).unwrap_or_else(|_| "[]".to_string());
+    let results = find_matches(&collect_files_to_scan(path), matcher.as_ref());
+    let payload = serde_json::to_string_pretty(&results).unwrap_or_else(|_| "[]".to_string());
     Ok(truncate_output(&payload))
 }
 
@@ -59,7 +58,7 @@ pub fn search_text_with_limit(
 fn build_matcher(query_string: &str, is_regex: bool) -> CoreResult<LineMatcher> {
     if is_regex {
         let re = Regex::new(query_string)
-            .map_err(|e| CoreError::Parsing(format!("Invalid regex: {}", e)))?;
+            .map_err(|e| CoreError::Parsing(format!("Invalid regex: {e}")))?;
         Ok(Box::new(move |s| re.is_match(s)))
     } else {
         let q = query_string.to_string();
@@ -75,9 +74,9 @@ fn collect_files_to_scan(path: &Path) -> Vec<PathBuf> {
     } else {
         WalkDir::new(path)
             .into_iter()
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| e.file_type().is_file())
-            .map(|e| e.into_path())
+            .map(walkdir::DirEntry::into_path)
             .collect()
     }
 }
@@ -86,12 +85,12 @@ fn collect_files_to_scan(path: &Path) -> Vec<PathBuf> {
 /// or unreadable files are not search errors) and returns every line
 /// `matcher` accepts as a `{file, line, content}` JSON object.
 fn find_matches(files: &[PathBuf], matcher: &dyn Fn(&str) -> bool) -> Vec<Value> {
-    let mut matches = Vec::new();
+    let mut results = Vec::new();
     for file_path in files {
         if let Ok(content) = std::fs::read_to_string(file_path) {
             for (idx, line) in content.lines().enumerate() {
                 if matcher(line) {
-                    matches.push(json!({
+                    results.push(json!({
                         "file": file_path.to_string_lossy().into_owned(),
                         "line": idx + 1,
                         "content": line.trim()
@@ -100,7 +99,7 @@ fn find_matches(files: &[PathBuf], matcher: &dyn Fn(&str) -> bool) -> Vec<Value>
             }
         }
     }
-    matches
+    results
 }
 
 /// Walks `search_root` (defaulting to `.`) and returns the paths of entries
@@ -132,15 +131,14 @@ pub fn search_file_by_name_or_type(
     let path = Path::new(root_str);
     if !path.exists() {
         return Err(CoreError::File(format!(
-            "Search root directory does not exist: {}",
-            root_str
+            "Search root directory does not exist: {root_str}"
         )));
     }
 
     let name_regex = if let Some(pattern) = name_pattern {
         Some(
             Regex::new(pattern)
-                .map_err(|e| CoreError::Parsing(format!("Invalid name pattern regex: {}", e)))?,
+                .map_err(|e| CoreError::Parsing(format!("Invalid name pattern regex: {e}")))?,
         )
     } else {
         None
@@ -148,7 +146,7 @@ pub fn search_file_by_name_or_type(
 
     let results: Vec<String> = WalkDir::new(path)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|entry| entry_matches(entry, name_regex.as_ref(), file_type))
         .map(|entry| entry.path().to_string_lossy().into_owned())
         .collect();
@@ -169,7 +167,7 @@ fn entry_matches(entry: &DirEntry, name_regex: Option<&Regex>, file_type: Option
 
     match file_type {
         Some("file") => entry.file_type().is_file(),
-        Some("directory") | Some("dir") => entry.file_type().is_dir(),
+        Some("directory" | "dir") => entry.file_type().is_dir(),
         Some("symlink") => entry.file_type().is_symlink(),
         _ => true,
     }

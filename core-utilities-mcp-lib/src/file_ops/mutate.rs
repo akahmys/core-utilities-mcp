@@ -31,41 +31,37 @@ pub fn copy_file_or_directory(source: &str, destination: &str) -> CoreResult<()>
     let dest = Path::new(destination);
 
     if !src.exists() {
-        return Err(CoreError::File(format!(
-            "Source does not exist: {}",
-            source
-        )));
+        return Err(CoreError::File(format!("Source does not exist: {source}")));
     }
 
     if src.is_dir() {
         copy_dir_all(src, dest)
     } else {
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                CoreError::File(format!("Failed to create parent directory: {}", e))
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| CoreError::File(format!("Failed to create parent directory: {e}")))?;
         }
         std::fs::copy(src, dest)
             .map(|_| ())
-            .map_err(|e| CoreError::File(format!("Failed to copy file: {}", e)))
+            .map_err(|e| CoreError::File(format!("Failed to copy file: {e}")))
     }
 }
 
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> CoreResult<()> {
     std::fs::create_dir_all(&dst)
-        .map_err(|e| CoreError::File(format!("Failed to create directory: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to create directory: {e}")))?;
     for entry in std::fs::read_dir(src)
-        .map_err(|e| CoreError::File(format!("Failed to read directory: {}", e)))?
+        .map_err(|e| CoreError::File(format!("Failed to read directory: {e}")))?
     {
-        let entry = entry.map_err(|e| CoreError::File(format!("Failed to read entry: {}", e)))?;
+        let entry = entry.map_err(|e| CoreError::File(format!("Failed to read entry: {e}")))?;
         let file_type = entry
             .file_type()
-            .map_err(|e| CoreError::File(format!("Failed to get file type: {}", e)))?;
+            .map_err(|e| CoreError::File(format!("Failed to get file type: {e}")))?;
         if file_type.is_dir() {
             copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
         } else {
             std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))
-                .map_err(|e| CoreError::File(format!("Failed to copy file: {}", e)))?;
+                .map_err(|e| CoreError::File(format!("Failed to copy file: {e}")))?;
         }
     }
     Ok(())
@@ -94,18 +90,15 @@ pub fn move_file_or_directory(source: &str, destination: &str) -> CoreResult<()>
     let dest = Path::new(destination);
 
     if !src.exists() {
-        return Err(CoreError::File(format!(
-            "Source does not exist: {}",
-            source
-        )));
+        return Err(CoreError::File(format!("Source does not exist: {source}")));
     }
 
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| CoreError::File(format!("Failed to create parent directory: {}", e)))?;
+            .map_err(|e| CoreError::File(format!("Failed to create parent directory: {e}")))?;
     }
 
-    std::fs::rename(src, dest).map_err(|e| CoreError::File(format!("Failed to move target: {}", e)))
+    std::fs::rename(src, dest).map_err(|e| CoreError::File(format!("Failed to move target: {e}")))
 }
 
 /// Creates `path`, including all intermediate parent directories
@@ -126,7 +119,7 @@ pub fn move_file_or_directory(source: &str, destination: &str) -> CoreResult<()>
 pub fn create_directory(path: &str) -> CoreResult<()> {
     validate_path_safety(path)?;
     std::fs::create_dir_all(Path::new(path))
-        .map_err(|e| CoreError::File(format!("Failed to create directory: {}", e)))
+        .map_err(|e| CoreError::File(format!("Failed to create directory: {e}")))
 }
 
 /// Writes `content` to `path`, creating any missing parent directories
@@ -153,16 +146,14 @@ pub fn write_file(path: &str, content: &str, overwrite: Option<bool>) -> CoreRes
 
     if file_path.exists() && !overwrite.unwrap_or(false) {
         return Err(CoreError::File(format!(
-            "'{}' already exists — pass overwrite: true to replace it, or use edit_file_content for a targeted change",
-            path
+            "'{path}' already exists — pass overwrite: true to replace it, or use edit_file_content for a targeted change"
         )));
     }
 
     if let Some(parent) = file_path.parent() {
         if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                CoreError::File(format!("Failed to create parent directory: {}", e))
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| CoreError::File(format!("Failed to create parent directory: {e}")))?;
         }
     }
 
@@ -210,11 +201,11 @@ pub fn edit_file_content(
     validate_path_safety(path)?;
     let file_path = Path::new(path);
     if !file_path.is_file() {
-        return Err(CoreError::File(format!("Path is not a file: {}", path)));
+        return Err(CoreError::File(format!("Path is not a file: {path}")));
     }
 
     let content = std::fs::read_to_string(file_path)
-        .map_err(|e| CoreError::File(format!("Failed to read file: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to read file: {e}")))?;
 
     let lines: Vec<&str> = content.split('\n').collect();
     verify_line_range(&lines, start_line, end_line, target_content)?;
@@ -274,11 +265,11 @@ fn verify_line_range(
 fn atomic_write(path: &Path, content: &str) -> CoreResult<()> {
     let temp_path = path.with_extension("tmp");
     std::fs::write(&temp_path, content.as_bytes())
-        .map_err(|e| CoreError::File(format!("Failed to write temp file: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to write temp file: {e}")))?;
 
     std::fs::rename(&temp_path, path).map_err(|e| {
         let _ = std::fs::remove_file(&temp_path);
-        CoreError::File(format!("Failed to replace file: {}", e))
+        CoreError::File(format!("Failed to replace file: {e}"))
     })
 }
 

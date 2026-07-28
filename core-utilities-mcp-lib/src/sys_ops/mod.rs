@@ -161,7 +161,7 @@ pub async fn execute_command(
     let timeout_duration = resolve_timeout(timeout_seconds);
 
     tokio::select! {
-        _ = tokio::time::sleep(timeout_duration) => {
+        () = tokio::time::sleep(timeout_duration) => {
             let _ = child.kill().await;
             Err(CoreError::Command(format!(
                 "Command execution timed out after {}s — pass a larger `timeout_seconds` argument (up to {}) if the command legitimately needs more time",
@@ -170,7 +170,7 @@ pub async fn execute_command(
             )))
         }
         (stdout_buf, stderr_buf) = read_output_streams(&mut child, stdout, stderr, limit * 4) => {
-            let status = child.wait().await.map_err(|e| CoreError::Process(format!("Failed to wait for child: {}", e)))?;
+            let status = child.wait().await.map_err(|e| CoreError::Process(format!("Failed to wait for child: {e}")))?;
             Ok(build_command_result(status.code().unwrap_or(-1), &stdout_buf, &stderr_buf))
         }
     }
@@ -186,7 +186,7 @@ fn spawn_with_pipes(
 ) -> CoreResult<(Child, ChildStdout, ChildStderr)> {
     let mut child = build_command(command, cwd)
         .spawn()
-        .map_err(|e| CoreError::Process(format!("Failed to spawn command: {}", e)))?;
+        .map_err(|e| CoreError::Process(format!("Failed to spawn command: {e}")))?;
     let stdout = child
         .stdout
         .take()

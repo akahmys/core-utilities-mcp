@@ -15,9 +15,8 @@ pub struct TruncateResult {
 }
 
 /// Top-level system directories that must never be targeted directly by a
-/// mutation (delete, move, copy destination, mkdir, or edit). Matching is
-/// exact (case-insensitive, ignoring trailing separators) so legitimate work
-/// on subpaths such as `/etc/myapp.conf` remains unaffected.
+/// mutation. Matching is exact (case-insensitive, ignoring trailing
+/// separators) so legitimate work on subpaths like `/etc/myapp.conf` is fine.
 const CRITICAL_SYSTEM_DIRS: &[&str] = &[
     "/etc",
     "/bin",
@@ -40,10 +39,9 @@ fn is_critical_system_dir(trimmed: &str) -> bool {
     CRITICAL_SYSTEM_DIRS.contains(&normalized.as_str())
 }
 
-/// Collapses `.` and `..` components of an absolute path lexically (no
-/// filesystem access), so a target that does not exist yet — a new file, a
-/// move/copy destination, a not-yet-created `mkdir -p` chain — can still be
-/// checked against a workspace root.
+/// Collapses `.` and `..` path components lexically (no filesystem access),
+/// so a not-yet-existing target (new file, move/copy destination, `mkdir -p`
+/// chain) can still be checked against a workspace root.
 fn lexically_normalize(path: &Path) -> PathBuf {
     let mut stack: Vec<Component> = Vec::new();
     for component in path.components() {
@@ -53,7 +51,7 @@ fn lexically_normalize(path: &Path) -> PathBuf {
                 Some(Component::Normal(_)) => {
                     stack.pop();
                 }
-                Some(Component::RootDir) | Some(Component::Prefix(_)) => {}
+                Some(Component::RootDir | Component::Prefix(_)) => {}
                 _ => stack.push(component),
             },
             other => stack.push(other),
@@ -63,7 +61,7 @@ fn lexically_normalize(path: &Path) -> PathBuf {
 }
 
 /// Resolves `path` to an absolute, lexically-normalized form relative to the
-/// current working directory, without requiring it to exist.
+/// cwd, without requiring it to exist.
 fn resolve_absolute(path: &str) -> CoreResult<PathBuf> {
     let candidate = Path::new(path);
     let absolute = if candidate.is_absolute() {
@@ -76,9 +74,8 @@ fn resolve_absolute(path: &str) -> CoreResult<PathBuf> {
     Ok(lexically_normalize(&absolute))
 }
 
-/// When `AI_WORKSPACE_ROOT` is set, rejects any path that resolves outside
-/// it. Confinement is opt-in and off by default: with the variable unset,
-/// this is a no-op, preserving prior behavior for callers that don't set it.
+/// When `AI_WORKSPACE_ROOT` is set, rejects any path resolving outside it.
+/// Opt-in and off by default: unset, this is a no-op.
 fn check_workspace_root(path: &str) -> CoreResult<()> {
     let Ok(root_str) = std::env::var("AI_WORKSPACE_ROOT") else {
         return Ok(());
@@ -101,10 +98,9 @@ fn check_workspace_root(path: &str) -> CoreResult<()> {
     Ok(())
 }
 
-/// True if `trimmed`, once `.`/`..` components are lexically collapsed,
-/// refers to "here" — the directory the path is resolved against — under
-/// any spelling (`.`, `./`, `././`, `a/..`, ...). A literal `== "."`
-/// comparison misses these equivalent spellings.
+/// True if `trimmed` lexically collapses to "here" under any spelling
+/// (`.`, `./`, `././`, `a/..`, ...) — a literal `== "."` comparison misses
+/// these equivalent spellings.
 fn is_current_dir_equivalent(trimmed: &str) -> bool {
     lexically_normalize(Path::new(trimmed))
         .as_os_str()
@@ -112,11 +108,10 @@ fn is_current_dir_equivalent(trimmed: &str) -> bool {
 }
 
 /// Checks shared by both [`validate_path_safety`] and
-/// [`validate_read_path_safety`]: NUL bytes, the `/`/`*`/`~` literals,
-/// wildcard-terminated patterns, critical system directories, and
-/// `AI_WORKSPACE_ROOT` confinement. Each rejection explains why the path was
-/// blocked and what to pass instead, since the caller is typically an LLM
-/// deciding how to retry.
+/// [`validate_read_path_safety`]: NUL bytes, `/`/`*`/`~`, wildcard
+/// patterns, critical system directories, and `AI_WORKSPACE_ROOT`
+/// confinement. Each rejection states what to pass instead, for the LLM
+/// caller deciding how to retry.
 fn common_path_checks(trimmed: &str) -> CoreResult<()> {
     if trimmed.contains('\0') {
         return Err(CoreError::Guardrail("path contains a NUL byte".to_string()));
@@ -172,6 +167,10 @@ fn common_path_checks(trimmed: &str) -> CoreResult<()> {
 /// path being checked, and provides no protection against a command that
 /// bypasses this function entirely (e.g. a raw shell command).
 ///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] for any of the rejection conditions
+/// listed above.
+///
 /// # Examples
 ///
 /// ```
@@ -214,6 +213,10 @@ pub fn validate_path_safety(path: &str) -> CoreResult<()> {
 /// for these operations, since — unlike a mutation — it cannot destroy
 /// anything.
 ///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] under the same conditions as
+/// [`validate_path_safety`], except that the current directory is permitted.
+///
 /// # Examples
 ///
 /// ```
@@ -234,10 +237,8 @@ pub fn validate_read_path_safety(path: &str) -> CoreResult<()> {
 }
 
 /// Truncates `input` to at most `AI_COMMAND_MAX_CHARACTERS` characters
-/// (default `8192`), preferring to cut at the last newline within the limit
-/// so structured output (JSON lines, log lines) is not split mid-line. When
-/// truncation occurs, `next_offset` reports the character offset callers
-/// should resume reading from.
+/// (default `8192`), preferring to cut at the last newline so structured
+/// output isn't split mid-line. `next_offset` reports where to resume from.
 ///
 /// # Examples
 ///
@@ -250,6 +251,7 @@ pub fn validate_read_path_safety(path: &str) -> CoreResult<()> {
 /// assert_eq!(result.content, "hello");
 /// assert_eq!(result.next_offset, Some(5));
 /// ```
+#[must_use]
 pub fn truncate_output(input: &str) -> TruncateResult {
     let limit: usize = std::env::var("AI_COMMAND_MAX_CHARACTERS")
         .ok()
@@ -287,12 +289,10 @@ pub fn truncate_output(input: &str) -> TruncateResult {
     }
 }
 
-/// Guards mutations of the process-global `AI_COMMAND_MAX_CHARACTERS`
-/// environment variable across tests that run concurrently within the same
-/// test binary. A `tokio::sync::Mutex` (rather than `std::sync::Mutex`) is
-/// used deliberately: `sys_ops`'s async tests must hold the guard across an
-/// `.await`, which clippy's `await_holding_lock` lint (rightly) flags for
-/// std mutexes but not for tokio's async-aware one.
+/// Serializes tests that mutate process-global env vars. `tokio::sync::Mutex`
+/// rather than `std::sync::Mutex`, since `sys_ops`'s async tests hold the
+/// guard across an `.await` (flagged by clippy's `await_holding_lock` for
+/// std mutexes, not tokio's async-aware one).
 #[cfg(test)]
 pub static ENV_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 

@@ -51,7 +51,7 @@ proptest! {
         prefix in "[a-zA-Z0-9/_.]{0,50}",
         suffix in "[a-zA-Z0-9/_.]{0,50}",
     ) {
-        let path = format!("{}\0{}", prefix, suffix);
+        let path = format!("{prefix}\0{suffix}");
         prop_assert!(validate_path_safety(&path).is_err());
     }
 

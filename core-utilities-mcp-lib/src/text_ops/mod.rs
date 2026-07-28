@@ -34,11 +34,11 @@ pub fn read_file_with_limit(
     validate_read_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(CoreError::File(format!("File not found: {}", path)));
+        return Err(CoreError::File(format!("File not found: {path}")));
     }
 
     let content = std::fs::read_to_string(path_buf)
-        .map_err(|e| CoreError::File(format!("Failed to read file: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to read file: {e}")))?;
 
     let offset = start_offset.unwrap_or(0);
     let skipped_content: String = content.chars().skip(offset).collect();
@@ -68,7 +68,7 @@ pub fn read_file_with_limit(
 ///
 /// let result = filter_and_sort_matrix_columns(
 ///     "data/users.csv",
-///     vec!["id".to_string(), "name".to_string()],
+///     &["id".to_string(), "name".to_string()],
 ///     Some(true),
 /// )?;
 /// println!("{}", result.content);
@@ -76,24 +76,24 @@ pub fn read_file_with_limit(
 /// ```
 pub fn filter_and_sort_matrix_columns(
     path: &str,
-    columns: Vec<String>,
+    columns: &[String],
     deduplicate: Option<bool>,
 ) -> CoreResult<TruncateResult> {
     validate_read_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(CoreError::File(format!("File not found: {}", path)));
+        return Err(CoreError::File(format!("File not found: {path}")));
     }
 
     let file = std::fs::File::open(path_buf)
-        .map_err(|e| CoreError::File(format!("Failed to open file: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to open file: {e}")))?;
     // Support tab separation dynamically based on path
-    let is_tsv = path.ends_with(".tsv");
+    let is_tsv = path.to_lowercase().ends_with(".tsv");
     let mut reader = csv::ReaderBuilder::new()
         .delimiter(if is_tsv { b'\t' } else { b',' })
         .from_reader(file);
 
-    let col_indices = resolve_column_indices(&mut reader, &columns, path)?;
+    let col_indices = resolve_column_indices(&mut reader, columns, path)?;
     let mut rows = read_filtered_rows(&mut reader, &col_indices)?;
     if deduplicate.unwrap_or(false) {
         rows.sort();
@@ -103,7 +103,7 @@ pub fn filter_and_sort_matrix_columns(
     }
 
     Ok(truncate_output(&format_matrix_output(
-        &columns, &rows, is_tsv,
+        columns, &rows, is_tsv,
     )))
 }
 
@@ -117,7 +117,7 @@ fn resolve_column_indices<R: std::io::Read>(
 ) -> CoreResult<Vec<usize>> {
     let headers = reader
         .headers()
-        .map_err(|e| CoreError::Parsing(format!("Failed to read CSV headers: {}", e)))?
+        .map_err(|e| CoreError::Parsing(format!("Failed to read CSV headers: {e}")))?
         .clone();
     let col_indices: Vec<usize> = columns
         .iter()
@@ -145,7 +145,7 @@ fn read_filtered_rows<R: std::io::Read>(
     let mut rows = Vec::new();
     for result in reader.records() {
         let record =
-            result.map_err(|e| CoreError::Parsing(format!("Failed to read CSV record: {}", e)))?;
+            result.map_err(|e| CoreError::Parsing(format!("Failed to read CSV record: {e}")))?;
         let filtered_row: Vec<String> = col_indices
             .iter()
             .map(|&idx| record.get(idx).unwrap_or("").to_string())
@@ -191,14 +191,14 @@ pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
     validate_read_path_safety(path)?;
     let path_buf = Path::new(path);
     if !path_buf.exists() {
-        return Err(CoreError::File(format!("File not found: {}", path)));
+        return Err(CoreError::File(format!("File not found: {path}")));
     }
 
     let content = std::fs::read_to_string(path_buf)
-        .map_err(|e| CoreError::File(format!("Failed to read file: {}", e)))?;
+        .map_err(|e| CoreError::File(format!("Failed to read file: {e}")))?;
 
     let json_data: Value = serde_json::from_str(&content)
-        .map_err(|e| CoreError::Parsing(format!("Failed to parse JSON: {}", e)))?;
+        .map_err(|e| CoreError::Parsing(format!("Failed to parse JSON: {e}")))?;
 
     let pointer = dot_path_to_json_pointer(json_path);
     match json_data.pointer(&pointer) {
@@ -247,7 +247,7 @@ fn describe_pointer_resolution_failure(
     let mut resolved_pointer = String::new();
     let mut current = json_data;
     for segment in pointer.split('/').filter(|s| !s.is_empty()) {
-        let next_pointer = format!("{}/{}", resolved_pointer, segment);
+        let next_pointer = format!("{resolved_pointer}/{segment}");
         match json_data.pointer(&next_pointer) {
             Some(value) => {
                 current = value;
@@ -264,7 +264,7 @@ fn describe_pointer_resolution_failure(
             arr.len(),
             arr.len()
         ),
-        other => format!("a scalar value ({})", other),
+        other => format!("a scalar value ({other})"),
     };
     let location = if resolved_pointer.is_empty() {
         "the root"
@@ -273,8 +273,7 @@ fn describe_pointer_resolution_failure(
     };
 
     format!(
-        "Path '{}' not found in JSON object — resolution stopped at '{}', which is {}",
-        json_path, location, available
+        "Path '{json_path}' not found in JSON object — resolution stopped at '{location}', which is {available}"
     )
 }
 
