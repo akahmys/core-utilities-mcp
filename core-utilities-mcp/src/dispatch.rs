@@ -4,12 +4,12 @@
 
 use crate::rpc_types::{
     CopyMoveArgs, EditFileArgs, ExecCmdArgs, FilterSortArgs, JsonRpcError, JsonRpcResponse,
-    ListDirArgs, PathArgs, QueryJsonArgs, ReadArgs, SearchFileArgs, SearchTextArgs,
+    ListDirArgs, PathArgs, QueryJsonArgs, ReadArgs, SearchFileArgs, SearchTextArgs, WriteFileArgs,
 };
 use core_utilities_mcp_lib::errors::{CoreError, CoreResult};
 use core_utilities_mcp_lib::file_ops::{
     copy_file_or_directory, create_directory, delete_file_or_directory, edit_file_content,
-    get_file_metadata, list_directory_contents, move_file_or_directory,
+    get_file_metadata, list_directory_contents, move_file_or_directory, write_file,
 };
 use core_utilities_mcp_lib::search_ops::{search_file_by_name_or_type, search_text_with_limit};
 use core_utilities_mcp_lib::sys_ops::{execute_command, get_system_context};
@@ -23,7 +23,9 @@ use tracing::warn;
 /// `core-utilities-mcp-lib` function, stringifying its JSON result. Unknown
 /// tool names yield [`CoreError::General`]; malformed `arguments` fall back
 /// to each tool's empty/default value rather than erroring, except
-/// `edit_file_content`, whose required numeric fields have no sane default.
+/// `edit_file_content` (whose required numeric fields have no sane default)
+/// and `write_file` (an empty-string default for `content` would silently
+/// write an empty file rather than surface the malformed request).
 ///
 /// Deliberately kept as one `match` over all tool names rather than split
 /// per `CODING.md`'s 40-line function guidance: each arm is the same
@@ -74,6 +76,15 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             });
             create_directory(&args.path).map(|_| "Successfully created directory.".to_string())
         }
+        "write_file" => match serde_json::from_value::<WriteFileArgs>(args) {
+            Ok(args) => {
+                write_file(&args.path, &args.content, args.overwrite).map(|v| v.to_string())
+            }
+            Err(e) => Err(CoreError::Parsing(format!(
+                "Invalid arguments for write_file: {}",
+                e
+            ))),
+        },
         "edit_file_content" => match serde_json::from_value::<EditFileArgs>(args) {
             Ok(args) => edit_file_content(
                 &args.path,

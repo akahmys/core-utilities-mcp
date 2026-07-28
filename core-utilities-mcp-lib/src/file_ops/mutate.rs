@@ -129,6 +129,51 @@ pub fn create_directory(path: &str) -> CoreResult<()> {
         .map_err(|e| CoreError::File(format!("Failed to create directory: {}", e)))
 }
 
+/// Writes `content` to `path`, creating any missing parent directories
+/// first. Refuses to overwrite an existing file unless `overwrite` is
+/// `true`, to prevent accidentally clobbering content the caller didn't
+/// intend to replace. The write is atomic (see [`atomic_write`]).
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] if `path` fails safety validation, or
+/// [`CoreError::File`] if `path` already exists and `overwrite` is not
+/// `true`, if parent directories can't be created, or if the write fails.
+///
+/// # Examples
+///
+/// ```no_run
+/// use core_utilities_mcp_lib::file_ops::write_file;
+///
+/// write_file("notes/todo.md", "- [ ] write more tests\n", None)?;
+/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
+/// ```
+pub fn write_file(path: &str, content: &str, overwrite: Option<bool>) -> CoreResult<Value> {
+    validate_path_safety(path)?;
+    let file_path = Path::new(path);
+
+    if file_path.exists() && !overwrite.unwrap_or(false) {
+        return Err(CoreError::File(format!(
+            "'{}' already exists — pass overwrite: true to replace it, or use edit_file_content for a targeted change",
+            path
+        )));
+    }
+
+    if let Some(parent) = file_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                CoreError::File(format!("Failed to create parent directory: {}", e))
+            })?;
+        }
+    }
+
+    atomic_write(file_path, content)?;
+
+    Ok(json!({
+        "status": "success",
+        "bytes_written": content.len()
+    }))
+}
+
 /// Replaces the 1-indexed line range `start_line..=end_line` in `path` with
 /// `replacement_content`, but only if that range's current content
 /// (whitespace-trimmed) exactly matches `target_content`. This

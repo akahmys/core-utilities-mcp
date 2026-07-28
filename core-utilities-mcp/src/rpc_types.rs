@@ -59,6 +59,13 @@ pub struct CopyMoveArgs {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct WriteFileArgs {
+    pub path: String,
+    pub content: String,
+    pub overwrite: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct EditFileArgs {
     pub path: String,
     pub start_line: usize,

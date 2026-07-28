@@ -74,7 +74,7 @@ impl Drop for TestServer {
 }
 
 #[test]
-fn initialize_and_tools_list_report_fourteen_tools() {
+fn initialize_and_tools_list_report_fifteen_tools() {
     let mut server = TestServer::spawn();
 
     let init = server.call(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize"}));
@@ -82,7 +82,7 @@ fn initialize_and_tools_list_report_fourteen_tools() {
 
     let list = server.call(&json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}));
     let tools = list["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 14);
+    assert_eq!(tools.len(), 15);
 }
 
 #[test]
@@ -101,6 +101,35 @@ fn tools_call_success_returns_structured_content() {
         .expect("content[0].text field");
     let ctx: Value = serde_json::from_str(text).expect("tool output was not JSON");
     assert!(ctx["os"].is_string());
+}
+
+#[test]
+fn tools_call_write_file_creates_file() {
+    let mut server = TestServer::spawn();
+    let path = std::env::temp_dir().join(format!(
+        "core-utilities-mcp-test-{}.txt",
+        std::process::id()
+    ));
+    let path_str = path.to_str().expect("temp path was not valid UTF-8");
+
+    let resp = server.call(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "write_file", "arguments": {"path": path_str, "content": "hello from integration test"}}
+    }));
+
+    let text = resp["result"]["content"][0]["text"]
+        .as_str()
+        .expect("content[0].text field");
+    let result: Value = serde_json::from_str(text).expect("tool output was not JSON");
+    assert_eq!(result["status"], "success");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("written file should be readable"),
+        "hello from integration test"
+    );
+
+    std::fs::remove_file(&path).ok();
 }
 
 #[test]

@@ -76,6 +76,19 @@ pub fn tool_definitions() -> Value {
             }
         },
         {
+            "name": "write_file",
+            "description": "Writes content to a new file, creating any missing parent directories. Refuses to overwrite an existing file unless overwrite is true.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" },
+                    "overwrite": { "type": "boolean", "description": "Set true to replace an existing file. Defaults to false." }
+                },
+                "required": ["path", "content"]
+            }
+        },
+        {
             "name": "edit_file_content",
             "description": "Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content before replacement.",
             "inputSchema": {

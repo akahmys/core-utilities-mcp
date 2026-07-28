@@ -50,6 +50,37 @@ fn test_edit_file_content_success() {
 }
 
 #[test]
+fn test_write_file_creates_new_file_and_parents() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("nested").join("new.txt");
+    let path_str = file_path.to_str().unwrap();
+
+    let res = write_file(path_str, "hello world", None).unwrap();
+    assert_eq!(res["status"], "success");
+    assert_eq!(res["bytes_written"], 11);
+    assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "hello world");
+}
+
+#[test]
+fn test_write_file_refuses_overwrite_without_flag() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("existing.txt");
+    std::fs::write(&file_path, "original").unwrap();
+    let path_str = file_path.to_str().unwrap();
+
+    assert!(matches!(
+        write_file(path_str, "clobbered", None),
+        Err(CoreError::File(_))
+    ));
+    assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "original");
+
+    assert!(write_file(path_str, "clobbered", Some(true)).is_ok());
+    assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "clobbered");
+}
+
+#[test]
 fn test_mutations_on_nonexistent_targets_return_file_errors() {
     let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();

@@ -18,7 +18,7 @@ core-utilities-mcp/
 │   └── src/
 │       ├── lib.rs              # Public entry point and shared interfaces
 │       ├── guardrails/         # Character limits, safety boundaries, path validation
-│       ├── file_ops/           # Read/delete/list/stat; mutate.rs holds copy/move/create/edit
+│       ├── file_ops/           # Read/delete/list/stat; mutate.rs holds copy/move/create/write/edit
 │       ├── search_ops/         # High-efficiency finder and grep operations
 │       ├── text_ops/           # Pagination, parsing, structured-data querying
 │       └── sys_ops/            # System introspection and shell command execution
@@ -63,7 +63,7 @@ RUST_LOG=debug core-utilities-mcp
 ```
 
 ### 3. Path Safety Validation (`rm -rf` Water-Edge Defense)
-All destructive commands (`delete_file_or_directory`, `move_file_or_directory`, `copy_file_or_directory`, `create_directory`, `edit_file_content`) apply path safety validation before execution. Operations on dangerous targets — the current directory under any spelling that lexically collapses to it (`.`, `./`, `a/..`, ...), `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) — are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
+All destructive commands (`delete_file_or_directory`, `move_file_or_directory`, `copy_file_or_directory`, `create_directory`, `write_file`, `edit_file_content`) apply path safety validation before execution. Operations on dangerous targets — the current directory under any spelling that lexically collapses to it (`.`, `./`, `a/..`, ...), `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) — are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
 
 Read-only commands (`list_directory_contents`, `get_file_metadata`, `search_text_with_limit`, `search_file_by_name_or_type`, `read_file_with_limit`, `filter_and_sort_matrix_columns`, `query_json_by_path`) apply the same validation *except* they permit the current directory — reading or listing "here" is the normal, safe default for these tools (several default to `.` when no path is given), and unlike a mutation it cannot destroy anything. Every rejection states what to pass instead, since the caller is typically an LLM deciding how to retry.
 
@@ -87,7 +87,7 @@ AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 
 ---
 
-## 🛠️ The 14 Core Command Specification
+## 🛠️ The 15 Core Command Specification
 
 ### File Operations & Directory Management
 1. `list_directory_contents` (ls): Lists contents divided into files, directories, and links.
@@ -96,20 +96,21 @@ AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 4. `move_file_or_directory` (mv): Validates source and destination safety.
 5. `delete_file_or_directory` (rm): Rigidly rejects dangerous paths.
 6. `create_directory` (mkdir): Automatically creates parent directories (`mkdir -p`).
-7. `edit_file_content` (edit): Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content.
+7. `write_file` (touch, `>`): Writes content to a new file, creating missing parent directories. Refuses to overwrite an existing file unless `overwrite: true` is passed.
+8. `edit_file_content` (edit): Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content.
 
 ### Search & Text Control
-8. `read_file_with_limit` (cat, head, tail): Paginates file reads using `start_offset` and smart truncation.
-9. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
-10. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
+9. `read_file_with_limit` (cat, head, tail): Paginates file reads using `start_offset` and smart truncation.
+10. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
+11. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
 
 ### Structural Data Formatting
-11. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
-12. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
+12. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
+13. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
 
 ### System & Shell Execution
-13. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
-14. `execute_command`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
+14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
+15. `execute_command`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
 
 
