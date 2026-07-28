@@ -188,9 +188,9 @@ fn common_path_checks(trimmed: &str) -> CoreResult<()> {
 /// ```no_run
 /// use core_utilities_mcp_lib::guardrails::validate_path_safety;
 ///
-/// std::env::set_var("AI_WORKSPACE_ROOT", "/Users/me/projects/rad");
-/// assert!(validate_path_safety("/Users/me/projects/rad/notes.md").is_ok());
-/// assert!(validate_path_safety("/Users/me/.ssh/id_ed25519").is_err());
+/// std::env::set_var("AI_WORKSPACE_ROOT", "/srv/rad");
+/// assert!(validate_path_safety("/srv/rad/notes.md").is_ok());
+/// assert!(validate_path_safety("/srv/other-project/id_ed25519").is_err());
 /// ```
 pub fn validate_path_safety(path: &str) -> CoreResult<()> {
     let trimmed = path.trim();

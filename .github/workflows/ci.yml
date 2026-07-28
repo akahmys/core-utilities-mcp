@@ -16,6 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Scan for secrets and absolute paths
+        run: scripts/check_secrets.sh --all
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -31,6 +34,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Check dependency licenses
+        run: python3 scripts/check_licenses.py
 
       - name: Check formatting
         run: cargo fmt --all -- --check

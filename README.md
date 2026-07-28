@@ -124,4 +124,10 @@ cargo test --all
 ```
 
 ### Continuous Integration
-Every push and pull request to `main` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, and `cargo test` via [GitHub Actions](.github/workflows/ci.yml).
+Every push and pull request to `main` runs `scripts/check_secrets.sh --all`, `scripts/check_licenses.py`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo build`, and `cargo test` via [GitHub Actions](.github/workflows/ci.yml).
+
+### Git Hooks
+`scripts/check_secrets.sh` also runs locally as a pre-commit hook (staged changes only), catching secrets and absolute paths before they're ever committed — CI can only catch them after the fact, once they're already in history. The hook lives in `.githooks/` (tracked in git) rather than `.git/hooks/` (which isn't), so it needs a one-time opt-in per clone:
+```bash
+git config core.hooksPath .githooks
+```
