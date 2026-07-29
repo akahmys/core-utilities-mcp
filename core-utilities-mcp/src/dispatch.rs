@@ -16,6 +16,7 @@ use core_utilities_mcp_lib::sys_ops::{execute_command, get_system_context};
 use core_utilities_mcp_lib::text_ops::{
     filter_and_sort_matrix_columns, query_json_by_path, read_file_with_limit,
 };
+use rust_mcp_schema::{CallToolResult, ContentBlock, TextContent};
 use serde_json::Value;
 use tracing::warn;
 
@@ -166,18 +167,16 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
 
 /// Converts a [`dispatch_tool_call`] outcome into the MCP `tools/call`
 /// response shape: `Ok` becomes a single text content block, `Err` becomes
-/// the same shape with `isError: true` and an `error_type` field (also
-/// logged via `tracing`) so a caller can distinguish failure categories
-/// without parsing the message text.
+/// the same shape with `isError: true` and the error category tucked into
+/// `_meta.error_type` (also logged via `tracing`) so a caller can
+/// distinguish failure categories without parsing the message text.
 pub fn build_tool_call_response(
     id: Option<Value>,
     tool_name: &str,
     tool_result: CoreResult<String>,
 ) -> JsonRpcResponse {
-    let content = match tool_result {
-        Ok(msg) => serde_json::json!({
-            "content": [{ "type": "text", "text": msg }]
-        }),
+    let call_result = match tool_result {
+        Ok(msg) => CallToolResult::text_content(vec![TextContent::new(msg, None, None)]),
         Err(e) => {
             warn!(
                 tool = %tool_name,
@@ -185,23 +184,25 @@ pub fn build_tool_call_response(
                 error = %e,
                 "tool call failed"
             );
-            serde_json::json!({
-                "content": [{
-                    "type": "text",
-                    "text": format!("Error: {}", e),
-                    "error_type": e.category()
-                }],
-                "isError": true
-            })
+            let mut meta = serde_json::Map::new();
+            meta.insert(
+                "error_type".to_string(),
+                Value::String(e.category().to_string()),
+            );
+            CallToolResult {
+                content: vec![ContentBlock::TextContent(TextContent::new(
+                    format!("Error: {e}"),
+                    None,
+                    Some(meta),
+                ))],
+                is_error: Some(true),
+                meta: None,
+                structured_content: None,
+            }
         }
     };
 
-    JsonRpcResponse {
-        jsonrpc: "2.0".to_string(),
-        id,
-        result: Some(content),
-        error: None,
-    }
+    crate::result_response(id, &call_result.into())
 }
 
 /// Builds the `-32602` "missing params" error response used when a

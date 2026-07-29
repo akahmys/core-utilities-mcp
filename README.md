@@ -26,10 +26,12 @@ core-utilities-mcp/
     ├── Cargo.toml
     └── src/
         ├── main.rs             # Entry point, stdin/stdout JSON-RPC loop, per-method routing
-        ├── rpc_types.rs        # JSON-RPC envelope and per-tool argument structs
+        ├── rpc_types.rs        # Our own JSON-RPC 2.0 envelope + per-tool argument structs
         ├── tools.rs            # tools/list schema definitions
         └── dispatch.rs         # tools/call: resolves a tool name to its lib function
 ```
+
+MCP protocol *result* types (`InitializeResult`, `ListToolsResult`, `CallToolResult`, `Tool`, `ProtocolVersion`, ...) come from the [`rust-mcp-schema`](https://crates.io/crates/rust-mcp-schema) crate rather than hand-rolled `serde_json::json!()`; the JSON-RPC 2.0 envelope itself (`rpc_types.rs`) is still our own, since that transport layer isn't `rust-mcp-schema`'s concern. `protocolVersion` in the `initialize` response comes from `ProtocolVersion::latest().to_string()`, so it tracks the crate's supported MCP version automatically on upgrade rather than being hardcoded. One resulting wire-format detail for client authors: a failed `tools/call`'s error category (e.g. `"File"`, `"Guardrail"`) lives at `content[0]._meta.error_type`, the standard MCP extension-field location, rather than as a bespoke top-level key on the content block.
 
 ---
 

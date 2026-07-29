@@ -3,6 +3,11 @@ mod rpc_types;
 mod tools;
 
 use rpc_types::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, ToolCallParams};
+use rust_mcp_schema::schema_utils::ResultFromServer;
+use rust_mcp_schema::{
+    Implementation, InitializeResult, ListToolsResult, ProtocolVersion, ServerCapabilities,
+    ServerCapabilitiesTools, Tool,
+};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tracing::{debug, info, warn};
@@ -171,35 +176,67 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
 }
 
 /// Handles both `initialize` (advertises protocol version, capabilities,
-/// and server info) and `initialized` (acknowledged with an empty result)
-/// — the two handshake notifications an MCP client sends before its first
-/// real request.
+/// and server info) and `initialized` (its response, if any, is never sent —
+/// see [`process_line`]'s notification handling) — the two handshake
+/// messages an MCP client exchanges before its first real request.
 fn handle_initialize(id: Option<Value>) -> JsonRpcResponse {
-    let result = serde_json::json!({
-        "protocolVersion": "2024-11-05",
-        "capabilities": {
-            "tools": {}
+    let init_result = InitializeResult {
+        capabilities: ServerCapabilities {
+            tools: Some(ServerCapabilitiesTools::default()),
+            ..Default::default()
         },
-        "serverInfo": {
-            "name": "core-utilities-mcp",
-            "version": "1.0.0"
+        instructions: None,
+        meta: None,
+        protocol_version: ProtocolVersion::latest().to_string(),
+        server_info: Implementation {
+            name: "core-utilities-mcp".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            title: None,
+            description: None,
+            icons: Vec::new(),
+            website_url: None,
+        },
+    };
+    result_response(id, &init_result.into())
+}
+
+/// Handles `tools/list` by deserializing [`tools::tool_definitions`]'s JSON
+/// into typed [`Tool`]s — validating the static schema table against the
+/// real MCP `Tool`/`ToolInputSchema` shape — then wrapping it in a
+/// [`ListToolsResult`].
+fn handle_tools_list(id: Option<Value>) -> JsonRpcResponse {
+    match serde_json::from_value::<Vec<Tool>>(tools::tool_definitions()) {
+        Ok(tools) => {
+            let list_result = ListToolsResult {
+                meta: None,
+                next_cursor: None,
+                tools,
+            };
+            result_response(id, &list_result.into())
         }
-    });
-    JsonRpcResponse {
-        jsonrpc: "2.0".to_string(),
-        id,
-        result: Some(result),
-        error: None,
+        Err(e) => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code: -32603,
+                message: format!("Internal error: malformed tool definitions: {e}"),
+                data: None,
+            }),
+        },
     }
 }
 
-/// Handles `tools/list` by wrapping [`tools::tool_definitions`] in the
-/// expected `{"tools": [...]}` envelope.
-fn handle_tools_list(id: Option<Value>) -> JsonRpcResponse {
+/// Wraps a typed MCP result in our JSON-RPC envelope. Serializing
+/// `ResultFromServer` (a `#[serde(untagged)]` enum) produces exactly the
+/// same JSON as serializing the wrapped value directly, so this costs
+/// nothing over `result: Some(serde_json::to_value(x))` while still routing
+/// every success response through the same MCP-result type used elsewhere.
+pub(crate) fn result_response(id: Option<Value>, result: &ResultFromServer) -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0".to_string(),
         id,
-        result: Some(serde_json::json!({ "tools": tools::tool_definitions() })),
+        result: Some(serde_json::to_value(result).unwrap_or(Value::Null)),
         error: None,
     }
 }

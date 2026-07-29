@@ -141,7 +141,7 @@ fn tools_call_failure_reports_error_type() {
     }));
 
     assert_eq!(resp["result"]["isError"], true);
-    assert_eq!(resp["result"]["content"][0]["error_type"], "File");
+    assert_eq!(resp["result"]["content"][0]["_meta"]["error_type"], "File");
 }
 
 #[test]

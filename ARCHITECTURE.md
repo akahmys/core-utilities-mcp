@@ -59,7 +59,7 @@ Decoupled logic without process boundaries. Organized into:
 - `sys_ops`: System introspection (`get_system_context`) and unsandboxed shell execution (`execute_command`); see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command) below.
 
 ### 2. `core-utilities-mcp` (External Protocol Wrapper)
-A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC requests, parses input into strongly-typed Rust structures, executes them via `core-utilities-mcp-lib`, and outputs structured JSON responses.
+A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC requests, parses input into strongly-typed Rust structures, executes them via `core-utilities-mcp-lib`, and outputs structured JSON responses. MCP protocol result types (`InitializeResult`, `ListToolsResult`, `CallToolResult`, `Tool`, ...) are built via the [`rust-mcp-schema`](https://crates.io/crates/rust-mcp-schema) crate rather than untyped JSON, and `initialize`'s `protocolVersion` tracks that crate's `ProtocolVersion::latest()` rather than a hardcoded string. The JSON-RPC 2.0 transport envelope (request/response/error, id correlation, the stdin/stdout loop) predates and is independent of `rust-mcp-schema`, which doesn't cover that layer.
 
 ---
 

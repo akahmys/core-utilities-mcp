@@ -68,6 +68,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "core-utilities-mcp-lib",
+ "rust-mcp-schema",
  "serde",
  "serde_json",
  "tokio",
@@ -474,6 +475,16 @@ name = "regex-syntax"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+
+[[package]]
+name = "rust-mcp-schema"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f8baf4b33459dc299d01654a52abd172c7fd76e38f93950344f9af9331dcb34"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "rustix"
