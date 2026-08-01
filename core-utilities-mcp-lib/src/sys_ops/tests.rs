@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn test_get_system_context() {
     let ctx = get_system_context().unwrap();
-    assert!(ctx["os"] != serde_json::Value::Null);
+    assert_ne!(ctx["os"], serde_json::Value::Null);
     assert!(ctx["cpu_cores"].as_u64().unwrap() > 0);
 }
 
