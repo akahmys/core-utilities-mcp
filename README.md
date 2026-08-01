@@ -33,35 +33,6 @@ It translates heavy, unpredictable, and raw shell commands into deterministic, J
 
 ---
 
-## 📁 Repository Structure (Cargo Workspace)
-
-The repository is structured as follows:
-
-```
-core-utilities-mcp/
-├── Cargo.toml                  # Workspace configuration
-├── core-utilities-mcp-lib/     # [Core] Independent pure Rust library crate
-│   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs              # Public entry point and shared interfaces
-│       ├── guardrails/         # Character limits, safety boundaries, path validation
-│       ├── file_ops/           # Read/delete/list/stat; mutate.rs holds copy/move/create/write/edit
-│       ├── search_ops/         # High-efficiency finder and grep operations
-│       ├── text_ops/           # Pagination, parsing, structured-data querying
-│       └── sys_ops/            # System introspection and shell command execution
-└── core-utilities-mcp/         # [Wrapper] MCP Server implementation (depends on core-utilities-mcp-lib)
-    ├── Cargo.toml
-    └── src/
-        ├── main.rs             # Entry point, stdin/stdout JSON-RPC loop, per-method routing
-        ├── rpc_types.rs        # Our own JSON-RPC 2.0 envelope + per-tool argument structs
-        ├── tools.rs            # tools/list schema definitions
-        └── dispatch.rs         # tools/call: resolves a tool name to its lib function
-```
-
-MCP protocol *result* types (`InitializeResult`, `ListToolsResult`, `CallToolResult`, `Tool`, `ProtocolVersion`, ...) come from the [`rust-mcp-schema`](https://crates.io/crates/rust-mcp-schema) crate rather than hand-rolled `serde_json::json!()`; the JSON-RPC 2.0 envelope itself (`rpc_types.rs`) is still our own, since that transport layer isn't `rust-mcp-schema`'s concern. `protocolVersion` in the `initialize` response comes from `ProtocolVersion::latest().to_string()`, so it tracks the crate's supported MCP version automatically on upgrade rather than being hardcoded. One resulting wire-format detail for client authors: a failed `tools/call`'s error category (e.g. `"File"`, `"Guardrail"`) lives at `content[0]._meta.error_type`, the standard MCP extension-field location, rather than as a bespoke top-level key on the content block.
-
----
-
 ## 🛡️ Common Guardrails
 
 `core-utilities-mcp-lib` enforces mechanical guardrails to prevent AI failures:
@@ -113,6 +84,35 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
 ```bash
 AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 ```
+
+---
+
+## 📁 Repository Structure (Cargo Workspace)
+
+The repository is structured as follows:
+
+```
+core-utilities-mcp/
+├── Cargo.toml                  # Workspace configuration
+├── core-utilities-mcp-lib/     # [Core] Independent pure Rust library crate
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs              # Public entry point and shared interfaces
+│       ├── guardrails/         # Character limits, safety boundaries, path validation
+│       ├── file_ops/           # Read/delete/list/stat; mutate.rs holds copy/move/create/write/edit
+│       ├── search_ops/         # High-efficiency finder and grep operations
+│       ├── text_ops/           # Pagination, parsing, structured-data querying
+│       └── sys_ops/            # System introspection and shell command execution
+└── core-utilities-mcp/         # [Wrapper] MCP Server implementation (depends on core-utilities-mcp-lib)
+    ├── Cargo.toml
+    └── src/
+        ├── main.rs             # Entry point, stdin/stdout JSON-RPC loop, per-method routing
+        ├── rpc_types.rs        # Our own JSON-RPC 2.0 envelope + per-tool argument structs
+        ├── tools.rs            # tools/list schema definitions
+        └── dispatch.rs         # tools/call: resolves a tool name to its lib function
+```
+
+MCP protocol *result* types (`InitializeResult`, `ListToolsResult`, `CallToolResult`, `Tool`, `ProtocolVersion`, ...) come from the [`rust-mcp-schema`](https://crates.io/crates/rust-mcp-schema) crate rather than hand-rolled `serde_json::json!()`; the JSON-RPC 2.0 envelope itself (`rpc_types.rs`) is still our own, since that transport layer isn't `rust-mcp-schema`'s concern. `protocolVersion` in the `initialize` response comes from `ProtocolVersion::latest().to_string()`, so it tracks the crate's supported MCP version automatically on upgrade rather than being hardcoded. One resulting wire-format detail for client authors: a failed `tools/call`'s error category (e.g. `"File"`, `"Guardrail"`) lives at `content[0]._meta.error_type`, the standard MCP extension-field location, rather than as a bespoke top-level key on the content block.
 
 ---
 

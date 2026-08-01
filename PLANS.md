@@ -26,6 +26,7 @@
 *   [x] **AWU 8.5: Streamlined Deserialization in `dispatch.rs` (Default Derive)**
 *   [x] **AWU 8.6: Apply `ENV_MUTEX` Lock in `property_tests.rs` & Add `write_file` Integration Test**
 *   [x] **AWU 8.7: Reorder `README.md` sections to place Core Command Specification after Overview**
+*   [x] **AWU 8.8: Reorder `README.md` to user-centric flow (Command Spec -> Guardrails -> Repo Structure -> Setup & Test)**
 
 *   [x] **AWU 4.4: Refactor `tools/call` Error Handling**
 *   [x] **AWU 3.1: Fix Clippy Warnings** (needless_borrows_for_generic_args)
@@ -107,6 +108,7 @@
 | **8.5** | **Streamlined Deserialization in `dispatch.rs`** | `[✅] Completed` | Added `#[derive(Default)]` to all argument structs in `rpc_types.rs`. Replaced verbose `unwrap_or(...)` instantiations in `dispatch.rs` with `unwrap_or_default()`. |
 | **8.6** | **Test Suite Hardening** | `[✅] Completed` | Protected `property_tests.rs` environment variable removal with `ENV_MUTEX.blocking_lock()`. Added `tools_call_write_file_refuses_overwrite_without_flag` integration test. All 72 tests pass. |
 | **8.7** | **Reorder README sections** | `[✅] Completed` | Reordered `README.md` to place 15 Core Command Specification immediately after introduction. |
+| **8.8** | **Reorder README for user-centric flow** | `[✅] Completed` | Moved `Common Guardrails` above `Repository Structure` to unify user-facing documentation before developer-facing documentation. |
 
 ---
 
