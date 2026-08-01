@@ -6,6 +6,33 @@ It translates heavy, unpredictable, and raw shell commands into deterministic, J
 
 ---
 
+## 🛠️ The 15 Core Command Specification
+
+### File Operations & Directory Management
+1. `list_directory_contents` (ls): Lists contents divided into files, directories, and links.
+2. `get_file_metadata` (stat, realpath): Retrieves absolute path, size, permissions, and timestamps.
+3. `copy_file_or_directory` (cp)
+4. `move_file_or_directory` (mv): Validates source and destination safety.
+5. `delete_file_or_directory` (rm): Rigidly rejects dangerous paths.
+6. `create_directory` (mkdir): Automatically creates parent directories (`mkdir -p`).
+7. `write_file` (touch, `>`): Writes content to a new file, creating missing parent directories. Refuses to overwrite an existing file unless `overwrite: true` is passed.
+8. `edit_file_content` (edit): Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content.
+
+### Search & Text Control
+9. `read_file_with_limit` (cat, head, tail): Paginates file reads using `start_offset` and smart truncation.
+10. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
+11. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
+
+### Structural Data Formatting
+12. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
+13. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
+
+### System & Shell Execution
+14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
+15. `execute_command`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
+
+---
+
 ## 📁 Repository Structure (Cargo Workspace)
 
 The repository is structured as follows:
@@ -86,33 +113,6 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
 ```bash
 AI_COMMAND_TIMEOUT_SECONDS=120 core-utilities-mcp
 ```
-
----
-
-## 🛠️ The 15 Core Command Specification
-
-### File Operations & Directory Management
-1. `list_directory_contents` (ls): Lists contents divided into files, directories, and links.
-2. `get_file_metadata` (stat, realpath): Retrieves absolute path, size, permissions, and timestamps.
-3. `copy_file_or_directory` (cp)
-4. `move_file_or_directory` (mv): Validates source and destination safety.
-5. `delete_file_or_directory` (rm): Rigidly rejects dangerous paths.
-6. `create_directory` (mkdir): Automatically creates parent directories (`mkdir -p`).
-7. `write_file` (touch, `>`): Writes content to a new file, creating missing parent directories. Refuses to overwrite an existing file unless `overwrite: true` is passed.
-8. `edit_file_content` (edit): Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content.
-
-### Search & Text Control
-9. `read_file_with_limit` (cat, head, tail): Paginates file reads using `start_offset` and smart truncation.
-10. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
-11. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
-
-### Structural Data Formatting
-12. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
-13. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
-
-### System & Shell Execution
-14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
-15. `execute_command`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
 ---
 

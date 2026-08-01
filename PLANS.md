@@ -25,6 +25,7 @@
 *   [x] **AWU 8.4: Path Verification & Existence Helper (Boilerplate Reduction)**
 *   [x] **AWU 8.5: Streamlined Deserialization in `dispatch.rs` (Default Derive)**
 *   [x] **AWU 8.6: Apply `ENV_MUTEX` Lock in `property_tests.rs` & Add `write_file` Integration Test**
+*   [x] **AWU 8.7: Reorder `README.md` sections to place Core Command Specification after Overview**
 
 *   [x] **AWU 4.4: Refactor `tools/call` Error Handling**
 *   [x] **AWU 3.1: Fix Clippy Warnings** (needless_borrows_for_generic_args)
@@ -105,6 +106,7 @@
 | **8.4** | **Path Verification & Existence Helper** | `[✅] Completed` | Added `ensure_existing_read_path` to `guardrails`. Refactored `get_file_metadata`, `search_text_with_limit`, `search_file_by_name_or_type`, `read_file_with_limit`, `filter_and_sort_matrix_columns`, and `query_json_by_path` to eliminate duplicated validation and existence-check boilerplate. |
 | **8.5** | **Streamlined Deserialization in `dispatch.rs`** | `[✅] Completed` | Added `#[derive(Default)]` to all argument structs in `rpc_types.rs`. Replaced verbose `unwrap_or(...)` instantiations in `dispatch.rs` with `unwrap_or_default()`. |
 | **8.6** | **Test Suite Hardening** | `[✅] Completed` | Protected `property_tests.rs` environment variable removal with `ENV_MUTEX.blocking_lock()`. Added `tools_call_write_file_refuses_overwrite_without_flag` integration test. All 72 tests pass. |
+| **8.7** | **Reorder README sections** | `[✅] Completed` | Reordered `README.md` to place 15 Core Command Specification immediately after introduction. |
 
 ---
 
