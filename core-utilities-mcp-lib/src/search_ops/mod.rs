@@ -2,7 +2,7 @@
 //! output-limited results instead of raw unbounded text.
 
 use crate::errors::{CoreError, CoreResult};
-use crate::guardrails::{truncate_output, validate_read_path_safety, TruncateResult};
+use crate::guardrails::{ensure_existing_read_path, truncate_output, TruncateResult};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -38,17 +38,9 @@ pub fn search_text_with_limit(
     query_string: &str,
     is_regex: Option<bool>,
 ) -> CoreResult<TruncateResult> {
-    validate_read_path_safety(search_root_or_file)?;
+    let path_buf = ensure_existing_read_path(search_root_or_file)?;
     let matcher = build_matcher(query_string, is_regex.unwrap_or(false))?;
-
-    let path = Path::new(search_root_or_file);
-    if !path.exists() {
-        return Err(CoreError::File(format!(
-            "Search root/file does not exist: {search_root_or_file}"
-        )));
-    }
-
-    let results = find_matches(&collect_files_to_scan(path), matcher.as_ref());
+    let results = find_matches(&collect_files_to_scan(&path_buf), matcher.as_ref());
     let payload = serde_json::to_string_pretty(&results).unwrap_or_else(|_| "[]".to_string());
     Ok(truncate_output(&payload))
 }
@@ -82,11 +74,12 @@ fn collect_files_to_scan(path: &Path) -> Vec<PathBuf> {
 }
 
 /// Reads each of `files` as UTF-8 (silently skipping any that fail — binary
-/// or unreadable files are not search errors) and returns every line
-/// `matcher` accepts as a `{file, line, content}` JSON object.
+/// or unreadable files are not search errors) and returns matching lines
+/// as `{file, line, content}` JSON objects, capped at 1000 items to bound memory.
 fn find_matches(files: &[PathBuf], matcher: &dyn Fn(&str) -> bool) -> Vec<Value> {
+    const MAX_MATCHES: usize = 1000;
     let mut results = Vec::new();
-    for file_path in files {
+    'outer: for file_path in files {
         if let Ok(content) = std::fs::read_to_string(file_path) {
             for (idx, line) in content.lines().enumerate() {
                 if matcher(line) {
@@ -95,6 +88,9 @@ fn find_matches(files: &[PathBuf], matcher: &dyn Fn(&str) -> bool) -> Vec<Value>
                         "line": idx + 1,
                         "content": line.trim()
                     }));
+                    if results.len() >= MAX_MATCHES {
+                        break 'outer;
+                    }
                 }
             }
         }
@@ -126,14 +122,7 @@ pub fn search_file_by_name_or_type(
     file_type: Option<&str>,
 ) -> CoreResult<TruncateResult> {
     let root_str = search_root.unwrap_or(".");
-    validate_read_path_safety(root_str)?;
-
-    let path = Path::new(root_str);
-    if !path.exists() {
-        return Err(CoreError::File(format!(
-            "Search root directory does not exist: {root_str}"
-        )));
-    }
+    let path_buf = ensure_existing_read_path(root_str)?;
 
     let name_regex = if let Some(pattern) = name_pattern {
         Some(
@@ -144,7 +133,7 @@ pub fn search_file_by_name_or_type(
         None
     };
 
-    let results: Vec<String> = WalkDir::new(path)
+    let results: Vec<String> = WalkDir::new(&path_buf)
         .into_iter()
         .filter_map(std::result::Result::ok)
         .filter(|entry| entry_matches(entry, name_regex.as_ref(), file_type))

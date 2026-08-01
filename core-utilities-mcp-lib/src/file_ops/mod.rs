@@ -123,14 +123,9 @@ pub fn list_directory_contents(path: Option<String>) -> CoreResult<Value> {
 /// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
 /// ```
 pub fn get_file_metadata(path: &str) -> CoreResult<Value> {
-    validate_read_path_safety(path)?;
+    let path_buf = crate::guardrails::ensure_existing_read_path(path)?;
 
-    let path_buf = Path::new(path);
-    if !path_buf.exists() {
-        return Err(CoreError::File(format!("Path does not exist: {path}")));
-    }
-
-    let metadata = std::fs::metadata(path_buf)
+    let metadata = std::fs::metadata(&path_buf)
         .map_err(|e| CoreError::File(format!("Failed to retrieve metadata: {e}")))?;
 
     let absolute_path = std::fs::canonicalize(path_buf)

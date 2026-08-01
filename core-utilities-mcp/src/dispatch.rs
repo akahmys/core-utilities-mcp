@@ -40,43 +40,30 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
     let args = arguments.unwrap_or(Value::Null);
     match name {
         "list_directory_contents" => {
-            let args: ListDirArgs =
-                serde_json::from_value(args).unwrap_or(ListDirArgs { path: None });
+            let args: ListDirArgs = serde_json::from_value(args).unwrap_or_default();
             list_directory_contents(args.path).map(|v| v.to_string())
         }
         "get_file_metadata" => {
-            let args: PathArgs = serde_json::from_value(args).unwrap_or(PathArgs {
-                path: String::new(),
-            });
+            let args: PathArgs = serde_json::from_value(args).unwrap_or_default();
             get_file_metadata(&args.path).map(|v| v.to_string())
         }
         "copy_file_or_directory" => {
-            let args: CopyMoveArgs = serde_json::from_value(args).unwrap_or(CopyMoveArgs {
-                source: String::new(),
-                destination: String::new(),
-            });
+            let args: CopyMoveArgs = serde_json::from_value(args).unwrap_or_default();
             copy_file_or_directory(&args.source, &args.destination)
                 .map(|()| "Successfully copied targets.".to_string())
         }
         "move_file_or_directory" => {
-            let args: CopyMoveArgs = serde_json::from_value(args).unwrap_or(CopyMoveArgs {
-                source: String::new(),
-                destination: String::new(),
-            });
+            let args: CopyMoveArgs = serde_json::from_value(args).unwrap_or_default();
             move_file_or_directory(&args.source, &args.destination)
                 .map(|()| "Successfully moved targets.".to_string())
         }
         "delete_file_or_directory" => {
-            let args: PathArgs = serde_json::from_value(args).unwrap_or(PathArgs {
-                path: String::new(),
-            });
+            let args: PathArgs = serde_json::from_value(args).unwrap_or_default();
             delete_file_or_directory(&args.path)
                 .map(|()| "Successfully deleted targets.".to_string())
         }
         "create_directory" => {
-            let args: PathArgs = serde_json::from_value(args).unwrap_or(PathArgs {
-                path: String::new(),
-            });
+            let args: PathArgs = serde_json::from_value(args).unwrap_or_default();
             create_directory(&args.path).map(|()| "Successfully created directory.".to_string())
         }
         "write_file" => match serde_json::from_value::<WriteFileArgs>(args) {
@@ -101,28 +88,17 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             ))),
         },
         "read_file_with_limit" => {
-            let args: ReadArgs = serde_json::from_value(args).unwrap_or(ReadArgs {
-                path: String::new(),
-                start_offset: None,
-            });
+            let args: ReadArgs = serde_json::from_value(args).unwrap_or_default();
             read_file_with_limit(&args.path, args.start_offset)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
         "search_text_with_limit" => {
-            let args: SearchTextArgs = serde_json::from_value(args).unwrap_or(SearchTextArgs {
-                search_root_or_file: String::new(),
-                query_string: String::new(),
-                is_regex: None,
-            });
+            let args: SearchTextArgs = serde_json::from_value(args).unwrap_or_default();
             search_text_with_limit(&args.search_root_or_file, &args.query_string, args.is_regex)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
         "search_file_by_name_or_type" => {
-            let args: SearchFileArgs = serde_json::from_value(args).unwrap_or(SearchFileArgs {
-                search_root: None,
-                name_pattern: None,
-                file_type: None,
-            });
+            let args: SearchFileArgs = serde_json::from_value(args).unwrap_or_default();
             search_file_by_name_or_type(
                 args.search_root.as_deref(),
                 args.name_pattern.as_deref(),
@@ -131,28 +107,17 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
         "filter_and_sort_matrix_columns" => {
-            let args: FilterSortArgs = serde_json::from_value(args).unwrap_or(FilterSortArgs {
-                path: String::new(),
-                columns: Vec::new(),
-                deduplicate: None,
-            });
+            let args: FilterSortArgs = serde_json::from_value(args).unwrap_or_default();
             filter_and_sort_matrix_columns(&args.path, &args.columns, args.deduplicate)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
         "query_json_by_path" => {
-            let args: QueryJsonArgs = serde_json::from_value(args).unwrap_or(QueryJsonArgs {
-                path: String::new(),
-                json_path: String::new(),
-            });
+            let args: QueryJsonArgs = serde_json::from_value(args).unwrap_or_default();
             query_json_by_path(&args.path, &args.json_path).map(|v| v.to_string())
         }
         "get_system_context" => get_system_context().map(|v| v.to_string()),
         "execute_command" => {
-            let args: ExecCmdArgs = serde_json::from_value(args).unwrap_or(ExecCmdArgs {
-                command: String::new(),
-                working_directory: None,
-                timeout_seconds: None,
-            });
+            let args: ExecCmdArgs = serde_json::from_value(args).unwrap_or_default();
             execute_command(
                 &args.command,
                 args.working_directory.as_deref(),

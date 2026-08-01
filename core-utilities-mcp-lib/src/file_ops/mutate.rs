@@ -258,14 +258,27 @@ fn verify_line_range(
     Ok(())
 }
 
-/// Writes `content` to `path` atomically: staged to a sibling `.tmp` file,
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Writes `content` to `path` atomically: staged to a unique sibling `.tmp` file,
 /// then renamed into place, so a crash or concurrent read never observes a
 /// partially written file. The staged file is cleaned up if the rename
 /// fails.
 fn atomic_write(path: &Path, content: &str) -> CoreResult<()> {
-    let temp_path = path.with_extension("tmp");
-    std::fs::write(&temp_path, content.as_bytes())
-        .map_err(|e| CoreError::File(format!("Failed to write temp file: {e}")))?;
+    let pid = std::process::id();
+    let seq = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let file_name = path
+        .file_name()
+        .map_or_else(|| "file".to_string(), |n| n.to_string_lossy().into_owned());
+    let temp_name = format!(".{file_name}.tmp.{pid}_{seq}");
+    let temp_path = path.with_file_name(temp_name);
+
+    std::fs::write(&temp_path, content.as_bytes()).map_err(|e| {
+        let _ = std::fs::remove_file(&temp_path);
+        CoreError::File(format!("Failed to write temp file: {e}"))
+    })?;
 
     std::fs::rename(&temp_path, path).map_err(|e| {
         let _ = std::fs::remove_file(&temp_path);

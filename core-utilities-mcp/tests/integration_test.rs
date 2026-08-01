@@ -184,3 +184,26 @@ fn stdin_close_triggers_graceful_exit() {
 
     assert!(status.success());
 }
+
+#[test]
+fn tools_call_write_file_refuses_overwrite_without_flag() {
+    let mut server = TestServer::spawn();
+    let path = std::env::temp_dir().join(format!(
+        "core-utilities-mcp-test-overwrite-{}.txt",
+        std::process::id()
+    ));
+    let path_str = path.to_str().expect("temp path was not valid UTF-8");
+    std::fs::write(&path, "initial content").expect("failed to seed test file");
+
+    let resp = server.call(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "write_file", "arguments": {"path": path_str, "content": "new content"}}
+    }));
+
+    assert_eq!(resp["result"]["isError"], true);
+    assert_eq!(resp["result"]["content"][0]["_meta"]["error_type"], "File");
+
+    std::fs::remove_file(&path).ok();
+}

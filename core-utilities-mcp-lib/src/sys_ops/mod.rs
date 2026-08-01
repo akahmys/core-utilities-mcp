@@ -227,24 +227,26 @@ async fn read_output_streams(
     let mut stderr_buf = Vec::new();
     let mut stdout_chunk = [0; 1024];
     let mut stderr_chunk = [0; 1024];
+    let mut stdout_done = false;
+    let mut stderr_done = false;
 
-    loop {
+    while !stdout_done || !stderr_done {
         tokio::select! {
-            res = stdout.read(&mut stdout_chunk) => {
+            res = stdout.read(&mut stdout_chunk), if !stdout_done => {
                 match res {
-                    Ok(0) | Err(_) => break,
+                    Ok(0) | Err(_) => stdout_done = true,
                     Ok(n) => {
                         stdout_buf.extend_from_slice(&stdout_chunk[..n]);
                         if stdout_buf.len() > byte_limit {
                             let _ = child.kill().await;
-                            break;
+                            stdout_done = true;
                         }
                     }
                 }
             }
-            res = stderr.read(&mut stderr_chunk) => {
+            res = stderr.read(&mut stderr_chunk), if !stderr_done => {
                 match res {
-                    Ok(0) | Err(_) => break,
+                    Ok(0) | Err(_) => stderr_done = true,
                     Ok(n) => {
                         stderr_buf.extend_from_slice(&stderr_chunk[..n]);
                     }

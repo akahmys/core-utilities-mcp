@@ -236,6 +236,19 @@ pub fn validate_read_path_safety(path: &str) -> CoreResult<()> {
     common_path_checks(trimmed)
 }
 
+/// Validates `path` using [`validate_read_path_safety`] and verifies existence.
+///
+/// # Errors
+/// Returns [`CoreError::Guardrail`] or [`CoreError::File`].
+pub fn ensure_existing_read_path(path: &str) -> CoreResult<PathBuf> {
+    validate_read_path_safety(path)?;
+    let path_buf = Path::new(path);
+    if !path_buf.exists() {
+        return Err(CoreError::File(format!("Path does not exist: {path}")));
+    }
+    Ok(path_buf.to_path_buf())
+}
+
 /// Truncates `input` to at most `AI_COMMAND_MAX_CHARACTERS` characters
 /// (default `8192`), preferring to cut at the last newline so structured
 /// output isn't split mid-line. `next_offset` reports where to resume from.
@@ -293,7 +306,7 @@ pub fn truncate_output(input: &str) -> TruncateResult {
 /// rather than `std::sync::Mutex`, since `sys_ops`'s async tests hold the
 /// guard across an `.await` (flagged by clippy's `await_holding_lock` for
 /// std mutexes, not tokio's async-aware one).
-#[cfg(test)]
+#[doc(hidden)]
 pub static ENV_MUTEX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[cfg(test)]

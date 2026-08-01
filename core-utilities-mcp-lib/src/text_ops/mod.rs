@@ -3,9 +3,9 @@
 //! implementation bodies down to a code skeleton, and querying JSON by path.
 
 use crate::errors::{CoreError, CoreResult};
-use crate::guardrails::{truncate_output, validate_read_path_safety, TruncateResult};
+use crate::guardrails::{ensure_existing_read_path, truncate_output, TruncateResult};
 use serde_json::Value;
-use std::path::Path;
+use std::io::Read;
 
 /// Reads `path` as UTF-8 text starting at character offset `start_offset`
 /// (default `0`) and applies the standard
@@ -27,17 +27,28 @@ use std::path::Path;
 /// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
 /// ```
 pub fn read_file_with_limit(path: &str, start_offset: Option<usize>) -> CoreResult<TruncateResult> {
-    validate_read_path_safety(path)?;
-    let path_buf = Path::new(path);
-    if !path_buf.exists() {
-        return Err(CoreError::File(format!("File not found: {path}")));
-    }
+    let path_buf = ensure_existing_read_path(path)?;
 
-    let content = std::fs::read_to_string(path_buf)
-        .map_err(|e| CoreError::File(format!("Failed to read file: {e}")))?;
+    let file = std::fs::File::open(&path_buf)
+        .map_err(|e| CoreError::File(format!("Failed to open file: {e}")))?;
+    let mut reader = std::io::BufReader::new(file);
 
     let offset = start_offset.unwrap_or(0);
-    let skipped_content: String = content.chars().skip(offset).collect();
+    let limit: usize = std::env::var("AI_COMMAND_MAX_CHARACTERS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8192);
+
+    let mut full_content = String::new();
+    reader
+        .read_to_string(&mut full_content)
+        .map_err(|e| CoreError::File(format!("Failed to read file: {e}")))?;
+
+    let skipped_content: String = full_content
+        .chars()
+        .skip(offset)
+        .take(limit + 1024)
+        .collect();
 
     let mut res = truncate_output(&skipped_content);
     if let Some(next) = res.next_offset {
@@ -75,13 +86,9 @@ pub fn filter_and_sort_matrix_columns(
     columns: &[String],
     deduplicate: Option<bool>,
 ) -> CoreResult<TruncateResult> {
-    validate_read_path_safety(path)?;
-    let path_buf = Path::new(path);
-    if !path_buf.exists() {
-        return Err(CoreError::File(format!("File not found: {path}")));
-    }
+    let path_buf = ensure_existing_read_path(path)?;
 
-    let file = std::fs::File::open(path_buf)
+    let file = std::fs::File::open(&path_buf)
         .map_err(|e| CoreError::File(format!("Failed to open file: {e}")))?;
     // Support tab separation dynamically based on path
     let is_tsv = path.to_lowercase().ends_with(".tsv");
@@ -184,11 +191,7 @@ fn format_matrix_output(columns: &[String], rows: &[Vec<String>], is_tsv: bool) 
 /// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
 /// ```
 pub fn query_json_by_path(path: &str, json_path: &str) -> CoreResult<Value> {
-    validate_read_path_safety(path)?;
-    let path_buf = Path::new(path);
-    if !path_buf.exists() {
-        return Err(CoreError::File(format!("File not found: {path}")));
-    }
+    let path_buf = ensure_existing_read_path(path)?;
 
     let content = std::fs::read_to_string(path_buf)
         .map_err(|e| CoreError::File(format!("Failed to read file: {e}")))?;

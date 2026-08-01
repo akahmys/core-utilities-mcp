@@ -42,30 +42,30 @@ pub struct ToolCallParams {
 }
 
 // Arguments structs
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PathArgs {
     pub path: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct ListDirArgs {
     pub path: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct CopyMoveArgs {
     pub source: String,
     pub destination: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct WriteFileArgs {
     pub path: String,
     pub content: String,
     pub overwrite: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct EditFileArgs {
     pub path: String,
     pub start_line: usize,
@@ -74,40 +74,40 @@ pub struct EditFileArgs {
     pub replacement_content: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct ReadArgs {
     pub path: String,
     pub start_offset: Option<usize>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct SearchTextArgs {
     pub search_root_or_file: String,
     pub query_string: String,
     pub is_regex: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct SearchFileArgs {
     pub search_root: Option<String>,
     pub name_pattern: Option<String>,
     pub file_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct FilterSortArgs {
     pub path: String,
     pub columns: Vec<String>,
     pub deduplicate: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct QueryJsonArgs {
     pub path: String,
     pub json_path: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct ExecCmdArgs {
     pub command: String,
     pub working_directory: Option<String>,

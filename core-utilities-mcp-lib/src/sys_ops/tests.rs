@@ -17,6 +17,18 @@ async fn test_execute_command_success() {
 }
 
 #[tokio::test]
+async fn test_execute_command_captures_stderr_after_stdout_close() {
+    let _lock = crate::guardrails::ENV_MUTEX.lock().await;
+    std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "100");
+    let res = execute_command("echo hello; echo error_msg >&2", None, None)
+        .await
+        .unwrap();
+    assert_eq!(res["exit_code"], 0);
+    assert!(res["stdout"].as_str().unwrap().contains("hello"));
+    assert!(res["stderr"].as_str().unwrap().contains("error_msg"));
+}
+
+#[tokio::test]
 async fn test_execute_command_timeout() {
     // A 1s timeout against a longer sleep should time out quickly rather
     // than waiting out the default.
