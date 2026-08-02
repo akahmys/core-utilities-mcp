@@ -1,6 +1,6 @@
 # core-utilities-mcp
 
-`core-utilities-mcp` is an AI-optimized Rust library and Model Context Protocol (MCP) server, powered by a modular, pure Rust design with optional integration of the standard UNIX utilities engine (`uutils/coreutils`).
+`core-utilities-mcp` is an AI-optimized Rust library and Model Context Protocol (MCP) server, built as a modular, pure Rust implementation of common file, search, and system utilities.
 
 It translates heavy, unpredictable, and raw shell commands into deterministic, JSON-structured, and line-windowed API tools. It is structured as a **Cargo Workspace** to eliminate process invocation overhead by compiling as a library, allowing direct integration into custom AI agents or standalone execution as an MCP server.
 
@@ -98,10 +98,10 @@ core-utilities-mcp/
 │   ├── Cargo.toml
 │   └── src/
 │       ├── lib.rs              # Public entry point and shared interfaces
-│       ├── guardrails/         # Character limits, safety boundaries, path validation
-│       ├── file_ops/           # Read/delete/list/stat; mutate.rs holds copy/move/create/write/edit
+│       ├── guardrails/         # path_safety (validation) and truncation (output limits)
+│       ├── file_ops/           # Read/delete/list/stat; mutate/ holds copy_move and edit (write_file, edit_file)
 │       ├── search_ops/         # High-efficiency finder and grep operations
-│       ├── text_ops/           # Pagination, parsing, structured-data querying
+│       ├── text_ops/           # read (line-windowed), matrix (CSV/TSV), query (JSON/TOML/YAML)
 │       └── sys_ops/            # System introspection and shell command execution
 └── core-utilities-mcp/         # [Wrapper] MCP Server implementation (depends on core-utilities-mcp-lib)
     ├── Cargo.toml
@@ -121,7 +121,7 @@ MCP protocol *result* types (`InitializeResult`, `ListToolsResult`, `CallToolRes
 ### Run Tests
 Every command has unit tests for edge cases and limits, plus property tests for the guardrails and end-to-end JSON-RPC integration tests for the server.
 ```bash
-cargo test --all
+cargo test --workspace
 ```
 
 ### Continuous Integration

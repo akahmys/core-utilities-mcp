@@ -2,9 +2,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum CoreError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
     #[error("Command execution error: {0}")]
     Command(String),
 
@@ -25,16 +22,12 @@ pub enum CoreError {
 
     #[error("Generic error: {0}")]
     General(String),
-
-    #[error("Unexpected error occurred")]
-    Unexpected,
 }
 
 impl CoreError {
     #[must_use]
     pub fn category(&self) -> &'static str {
         match self {
-            CoreError::Io(_) => "IO",
             CoreError::Command(_) => "Command",
             CoreError::File(_) => "File",
             CoreError::Guardrail(_) => "Guardrail",
@@ -42,7 +35,6 @@ impl CoreError {
             CoreError::System(_) => "System",
             CoreError::Process(_) => "Process",
             CoreError::General(_) => "General",
-            CoreError::Unexpected => "Unexpected",
         }
     }
 }

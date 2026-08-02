@@ -32,17 +32,19 @@ async fn main() -> anyhow::Result<()> {
     if args.len() > 1 {
         let arg = &args[1];
         if arg == "-h" || arg == "--help" {
-            println!("core-utilities-mcp - AI-optimized MCP server powered by uutils/coreutils");
+            println!("core-utilities-mcp - AI-optimized MCP server for deterministic file, search, and system utilities");
             println!("\nUsage:");
             println!("  core-utilities-mcp [options]");
             println!("\nOptions:");
             println!("  -h, --help     Print help information");
             println!("  -v, --version  Print version information");
             println!("\nEnvironment Variables:");
-            println!("  AI_COMMAND_MAX_CHARACTERS  Maximum characters returned in output (default: 8192)");
+            println!("  AI_COMMAND_MAX_CHARACTERS   Maximum characters returned in output (default: 8192)");
+            println!("  AI_COMMAND_TIMEOUT_SECONDS  Default execute_command timeout in seconds (default: 30, capped at 300)");
+            println!("  AI_WORKSPACE_ROOT           Optional path confinement for all validated file operations");
             return Ok(());
         } else if arg == "-v" || arg == "--version" {
-            println!("core-utilities-mcp 1.0.0");
+            println!("core-utilities-mcp {}", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
     }

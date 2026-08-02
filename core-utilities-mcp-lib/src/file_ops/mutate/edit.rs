@@ -1,5 +1,5 @@
-//! The mutating half of `file_ops`: copy, move, create, and the line-range
-//! editor. Every entry point runs its path(s) through
+//! The line-range editor: single/multi-chunk verified edits and controlled
+//! file creation. Every entry point runs its path through
 //! [`crate::guardrails::validate_path_safety`] before touching disk.
 
 use crate::errors::{CoreError, CoreResult};
@@ -7,121 +7,7 @@ use crate::guardrails::validate_path_safety;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::path::Path;
-
-/// Copies `source` to `destination`, recursing into subdirectories when
-/// `source` is a directory. Missing parent directories of `destination` are
-/// created automatically.
-///
-/// # Errors
-/// Returns [`CoreError::Guardrail`] if either path fails safety validation,
-/// or [`CoreError::File`] if `source` does not exist or the copy fails.
-///
-/// # Examples
-///
-/// ```no_run
-/// use core_utilities_mcp_lib::file_ops::copy_file_or_directory;
-///
-/// copy_file_or_directory("config/base.toml", "config/backup.toml")?;
-/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
-/// ```
-pub fn copy_file_or_directory(source: &str, destination: &str) -> CoreResult<()> {
-    validate_path_safety(source)?;
-    validate_path_safety(destination)?;
-
-    let src = Path::new(source);
-    let dest = Path::new(destination);
-
-    if !src.exists() {
-        return Err(CoreError::File(format!("Source does not exist: {source}")));
-    }
-
-    if src.is_dir() {
-        copy_dir_all(src, dest)
-    } else {
-        if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| CoreError::File(format!("Failed to create parent directory: {e}")))?;
-        }
-        std::fs::copy(src, dest)
-            .map(|_| ())
-            .map_err(|e| CoreError::File(format!("Failed to copy file: {e}")))
-    }
-}
-
-fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> CoreResult<()> {
-    std::fs::create_dir_all(&dst)
-        .map_err(|e| CoreError::File(format!("Failed to create directory: {e}")))?;
-    for entry in std::fs::read_dir(src)
-        .map_err(|e| CoreError::File(format!("Failed to read directory: {e}")))?
-    {
-        let entry = entry.map_err(|e| CoreError::File(format!("Failed to read entry: {e}")))?;
-        let file_type = entry
-            .file_type()
-            .map_err(|e| CoreError::File(format!("Failed to get file type: {e}")))?;
-        if file_type.is_dir() {
-            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
-        } else {
-            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))
-                .map_err(|e| CoreError::File(format!("Failed to copy file: {e}")))?;
-        }
-    }
-    Ok(())
-}
-
-/// Moves (renames) `source` to `destination`, creating any missing parent
-/// directories of `destination` first.
-///
-/// # Errors
-/// Returns [`CoreError::Guardrail`] if either path fails safety validation,
-/// or [`CoreError::File`] if `source` does not exist or the move fails.
-///
-/// # Examples
-///
-/// ```no_run
-/// use core_utilities_mcp_lib::file_ops::move_file_or_directory;
-///
-/// move_file_or_directory("drafts/report.md", "published/report.md")?;
-/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
-/// ```
-pub fn move_file_or_directory(source: &str, destination: &str) -> CoreResult<()> {
-    validate_path_safety(source)?;
-    validate_path_safety(destination)?;
-
-    let src = Path::new(source);
-    let dest = Path::new(destination);
-
-    if !src.exists() {
-        return Err(CoreError::File(format!("Source does not exist: {source}")));
-    }
-
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| CoreError::File(format!("Failed to create parent directory: {e}")))?;
-    }
-
-    std::fs::rename(src, dest).map_err(|e| CoreError::File(format!("Failed to move target: {e}")))
-}
-
-/// Creates `path`, including all intermediate parent directories
-/// (equivalent to `mkdir -p`).
-///
-/// # Errors
-/// Returns [`CoreError::Guardrail`] if `path` fails safety validation, or
-/// [`CoreError::File`] if directory creation fails.
-///
-/// # Examples
-///
-/// ```no_run
-/// use core_utilities_mcp_lib::file_ops::create_directory;
-///
-/// create_directory("build/output/nested")?;
-/// # Ok::<(), core_utilities_mcp_lib::CoreError>(())
-/// ```
-pub fn create_directory(path: &str) -> CoreResult<()> {
-    validate_path_safety(path)?;
-    std::fs::create_dir_all(Path::new(path))
-        .map_err(|e| CoreError::File(format!("Failed to create directory: {e}")))
-}
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Writes `content` to `path`, creating any missing parent directories
 /// first. Refuses to overwrite an existing file unless `overwrite` is
@@ -241,14 +127,7 @@ pub fn edit_file(path: &str, mut edits: Vec<EditChunk>) -> CoreResult<Value> {
     let new_content = new_lines.join("\n");
     atomic_write(file_path, &new_content)?;
 
-    // Recount from the joined text rather than `new_lines.len()`: a chunk
-    // whose `replacement_content` itself spans multiple lines contributes
-    // only one entry to `new_lines`, which would otherwise undercount.
-    let new_line_count = new_content.split('\n').count();
-    // A file's line count can never approach i64::MAX, so this cast cannot
-    // actually wrap; `try_from` would only add an unreachable error path.
-    #[allow(clippy::cast_possible_wrap)]
-    let line_delta = new_line_count as i64 - original_line_count as i64;
+    let (new_line_count, line_delta) = compute_line_stats(&new_content, original_line_count);
 
     Ok(json!({
         "status": "success",
@@ -256,6 +135,20 @@ pub fn edit_file(path: &str, mut edits: Vec<EditChunk>) -> CoreResult<Value> {
         "new_line_count": new_line_count,
         "line_delta": line_delta
     }))
+}
+
+/// Computes `new_line_count` and `line_delta` from the joined post-edit
+/// text and the pre-edit line count. Recounts from the joined text rather
+/// than trusting `new_lines.len()`: a chunk whose `replacement_content`
+/// itself spans multiple lines contributes only one entry to that vector,
+/// which would otherwise undercount.
+fn compute_line_stats(new_content: &str, original_line_count: usize) -> (usize, i64) {
+    let new_line_count = new_content.split('\n').count();
+    // A file's line count can never approach i64::MAX, so this cast cannot
+    // actually wrap; `try_from` would only add an unreachable error path.
+    #[allow(clippy::cast_possible_wrap)]
+    let line_delta = new_line_count as i64 - original_line_count as i64;
+    (new_line_count, line_delta)
 }
 
 /// Errors if any two (already start_line-sorted) edits' ranges overlap.
@@ -334,8 +227,6 @@ fn verify_line_range(
 
     Ok(())
 }
-
-use std::sync::atomic::{AtomicU64, Ordering};
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 

@@ -14,8 +14,8 @@
 
 ## ⚡ 2. Token & Resource Efficiency Audit
 
-* **On-Demand Inspection**: Confirm that no files outside the immediate scope of the AWU were parsed or loaded unnecessarily. Verify that line-windowed tools (`peek_file`) were utilized to scan heavy assets instead of bulk reading.
-* **Incremental Modifications**: Review the implementation footprint. Ensure that changes were applied surgically (e.g., via `file_edit_patch`) rather than performing aggressive, full-file rewrites that pollute Git diff history.
+* **On-Demand Inspection**: Confirm that no files outside the immediate scope of the AWU were parsed or loaded unnecessarily. Verify that line-windowed tools (`read_file`) were utilized to scan heavy assets instead of bulk reading.
+* **Incremental Modifications**: Review the implementation footprint. Ensure that changes were applied surgically (e.g., via `edit_file`) rather than performing aggressive, full-file rewrites that pollute Git diff history.
 * **Context Hygiene**: Verify that verbose compiler errors, multi-page test dumps, or raw output streams have been completely pruned from the persistent reasoning state to maximize available token limits.
 
 ---
@@ -41,13 +41,13 @@
 
 ## 🤖 5. Mechanical Audit (Automated Verification)
 
-Execute the following verification suite via `core-utilities-mcp:spawn_bash_process` and ensure all checks achieve flawless termination:
+Execute the following verification suite via `core-utilities-mcp:execute_command` and ensure all checks achieve flawless termination:
 
 * **Compilation**: `cargo check` passes with absolute zero errors.
 * **Formatting**: `cargo fmt --check` succeeds with no style discrepancies.
 * **Linting**: `cargo clippy --all-targets` passes with **zero warnings** under strict `#![deny(clippy::pedantic)]` constraints.
 * **Testing**: `cargo test` successfully clears all unit, integration, and doc-test suites across target workspaces.
-* **State Audit**: Execute `core-utilities-mcp:verify_file` on altered assets to double-check exact file metrics (lines, bytes, and hashes) before finalized logging.
+* **State Audit**: Use `get_file_metadata` for size/mtime, and `execute_command` (e.g. `wc -l`, checksums) for line counts and hashes, to double-check exact file metrics on altered assets before finalized logging.
 
 ---
 

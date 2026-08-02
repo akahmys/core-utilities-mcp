@@ -18,7 +18,7 @@
 
 **Prioritize clarity, deterministic output, and token hygiene over complex shell commands.**
 
-* **Favor Native APIs**: Choose specialized tools like `inspect_dir` and `peek_file` instead of piping raw UNIX commands. Avoid raw shell manipulation (`cat << EOF`) for file writes.
+* **Favor Native APIs**: Choose specialized tools like `list_dir` and `read_file` instead of piping raw UNIX commands. Avoid raw shell manipulation (`cat << EOF`) for file writes.
 * **Avoid Speculation**: Implement only what is strictly required for the current task. Do not introduce unused abstractions or "future-proofing" that bloats the context window.
 * **Minimize Footprint**: Solve problems with the smallest possible change. Keep modifications localized and their impact minimal to keep file diffs clean.
 
@@ -32,7 +32,7 @@ Strictly follow this sequence for every Atomic Work Unit (AWU). Timing and phase
 
 **Trigger:** A new task is assigned or a new sub-task is identified.
 
-* **Action:** 1. Review the global project roadmap and current status by reading `PLANS.md` via `core-utilities-mcp:peek_file`.
+* **Action:** 1. Review the global project roadmap and current status by reading `PLANS.md` via `core-utilities-mcp:read_file`.
 2. Decompose the task into discrete, measurable Atomic Work Units (AWUs).
 3. **Update `PLANS.md**`: Create a new entry in the "Short-Term Plan" indicating the objective, scope, and Definition of Done (DoD) for the upcoming unit.
 * **Goal:** Ensure task atomicity and maintain a transparent, verifiable roadmap.
@@ -42,10 +42,10 @@ Strictly follow this sequence for every Atomic Work Unit (AWU). Timing and phase
 **Trigger:** Modifying code, exploring files, or running tests.
 
 * **Action:**
-1. Inspect the workspace structure efficiently using `core-utilities-mcp:inspect_dir`.
-2. Read target files precisely using line-windowed boundaries with `core-utilities-mcp:peek_file`. Never read large files in their entirety.
-3. Search for patterns or cross-references using `core-utilities-mcp:structured_grep` to capture code context in a single turn.
-4. Write or modify files using deterministic file manipulation tools, and execute tests or compilers via `core-utilities-mcp:spawn_bash_process`.
+1. Inspect the workspace structure efficiently using `core-utilities-mcp:list_dir`.
+2. Read target files precisely using line-windowed boundaries with `core-utilities-mcp:read_file`. Never read large files in their entirety.
+3. Search for patterns or cross-references using `core-utilities-mcp:search_text`/`find_files` to capture code context in a single turn.
+4. Write or modify files using `core-utilities-mcp:write_file`/`edit_file`, and execute tests or compilers via `core-utilities-mcp:execute_command`.
 
 
 * **Goal:** Produce high-quality, warning-free, and logically sound implementations.
@@ -55,8 +55,8 @@ Strictly follow this sequence for every Atomic Work Unit (AWU). Timing and phase
 **Trigger:** Code implementation is physically complete, **BEFORE** marking the task as completed in `PLANS.md`.
 
 * **Action:**
-1. Run automated test suites, linters, and compilers via `core-utilities-mcp:spawn_bash_process` to ensure code health.
-2. Use `core-utilities-mcp:verify_file` to audit file line counts, byte sizes, and cryptographic checksums to verify target status.
+1. Run automated test suites, linters, and compilers via `core-utilities-mcp:execute_command` to ensure code health.
+2. Use `core-utilities-mcp:get_file_metadata` to audit file size and modification time, and `execute_command` (e.g. `wc -l`, checksums) for line counts and hashes it doesn't report.
 3. Validate adherence to code style guidelines (e.g., function complexity, line limits).
 4. **Update `PLANS.md**`: If all audits pass $\rightarrow$ Mark the AWU as `[✅] Completed` and record the execution `Result`.
 

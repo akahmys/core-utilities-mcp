@@ -55,7 +55,7 @@ Decoupled logic without process boundaries. Organized into:
 - `guardrails`: Independent pure functions validating paths and executing smart truncation.
 - `file_ops`: High-performance filesystem operations utilizing native Rust APIs.
 - `search_ops`: High-efficiency grep and find implementations.
-- `text_ops`: Utilities for line-windowed, line-numbered reading, CSV/TSV filtering, and JSON path queries.
+- `text_ops`: Utilities for line-windowed, line-numbered reading, CSV/TSV filtering, and JSON/TOML/YAML path queries.
 - `sys_ops`: System introspection (`get_system_info`) and unsandboxed shell execution (`execute_command`); see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command) below.
 
 ### 2. `core-utilities-mcp` (External Protocol Wrapper)
