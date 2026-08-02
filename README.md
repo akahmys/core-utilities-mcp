@@ -9,26 +9,26 @@ It translates heavy, unpredictable, and raw shell commands into deterministic, J
 ## 🛠️ The 15 Core Command Specification
 
 ### File Operations & Directory Management
-1. `list_directory_contents` (ls): Lists contents divided into files, directories, and links.
+1. `list_dir` (ls): Lists contents divided into files, directories, and links.
 2. `get_file_metadata` (stat, realpath): Retrieves absolute path, size, permissions, and timestamps.
-3. `copy_file_or_directory` (cp)
+3. `copy_file_or_directory` (cp): Copies a file or, recursively, a directory.
 4. `move_file_or_directory` (mv): Validates source and destination safety.
 5. `delete_file_or_directory` (rm): Rigidly rejects dangerous paths.
-6. `create_directory` (mkdir): Automatically creates parent directories (`mkdir -p`).
+6. `create_dir` (mkdir): Automatically creates parent directories (`mkdir -p`).
 7. `write_file` (touch, `>`): Writes content to a new file, creating missing parent directories. Refuses to overwrite an existing file unless `overwrite: true` is passed.
 8. `edit_file` (edit): Applies one or more non-contiguous line-range edits atomically, verifying each chunk's `target_content` before writing any of them. A single edit is just a one-element `edits` array. Reports `line_delta` (how many lines the file grew or shrank by) so a follow-up edit can adjust line numbers without re-reading.
 
 ### Search & Text Control
 9. `read_file` (cat, head, tail): Reads from a 1-indexed `start_line`, annotating each returned line as `"{line_number}\t{content}"` so output feeds directly into `edit_file`. Truncated reads report `next_start_line` to resume from.
-10. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
-11. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
+10. `search_text` (grep): JSON-structured regex/plain text finder; each match's `content` preserves leading whitespace so it can be pasted straight into `edit_file`'s `target_content`.
+11. `find_files` (find): Locates files based on name/type constraints.
 
 ### Structural Data Formatting
 12. `filter_and_sort_matrix_columns` (cut, sort, uniq): Filters CSV/TSV/logs and removes duplicates natively.
-13. `query_json_by_path`: Queries JSON structures using standard path queries (e.g., `data.users[0].id`).
+13. `query_data_by_path`: Queries JSON, TOML, or YAML files using standard path queries (e.g., `data.users[0].id`). Format is auto-detected from the file extension.
 
 ### System & Shell Execution
-14. `get_system_context` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
+14. `get_system_info` (uname, df, id): Aggregates system details (OS, CPU, Hostname, Disk free space, PID/UID info) into JSON.
 15. `execute_command`: Runs a shell command with a configurable timeout (`timeout_seconds`, default `30`, capped at `300`) and an output-size guard. Accepts an optional `working_directory`, defaulting to `AI_WORKSPACE_ROOT` if set. **Not path-validated and not isolated** — no filesystem, network, CPU, or memory restriction from the host; use an OS-level sandbox (container, VM) if you need that.
 
 ---
@@ -63,9 +63,9 @@ RUST_LOG=debug core-utilities-mcp
 ```
 
 ### 3. Path Safety Validation (`rm -rf` Water-Edge Defense)
-All destructive commands (`delete_file_or_directory`, `move_file_or_directory`, `copy_file_or_directory`, `create_directory`, `write_file`, `edit_file`) apply path safety validation before execution. Operations on dangerous targets — the current directory under any spelling that lexically collapses to it (`.`, `./`, `a/..`, ...), `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) — are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
+All destructive commands (`delete_file_or_directory`, `move_file_or_directory`, `copy_file_or_directory`, `create_dir`, `write_file`, `edit_file`) apply path safety validation before execution. Operations on dangerous targets — the current directory under any spelling that lexically collapses to it (`.`, `./`, `a/..`, ...), `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) — are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
 
-Read-only commands (`list_directory_contents`, `get_file_metadata`, `search_text_with_limit`, `search_file_by_name_or_type`, `read_file`, `filter_and_sort_matrix_columns`, `query_json_by_path`) apply the same validation *except* they permit the current directory — reading or listing "here" is the normal, safe default for these tools (several default to `.` when no path is given), and unlike a mutation it cannot destroy anything. Every rejection states what to pass instead, since the caller is typically an LLM deciding how to retry.
+Read-only commands (`list_dir`, `get_file_metadata`, `search_text`, `find_files`, `read_file`, `filter_and_sort_matrix_columns`, `query_data_by_path`) apply the same validation *except* they permit the current directory — reading or listing "here" is the normal, safe default for these tools (several default to `.` when no path is given), and unlike a mutation it cannot destroy anything. Every rejection states what to pass instead, since the caller is typically an LLM deciding how to retry.
 
 This is a mistake-prevention guard for an AI agent going off-script, not an adversarial security boundary — it does not resolve symlinks, and provides no protection for calls that bypass it entirely (e.g. `execute_command`, which is not path-validated).
 

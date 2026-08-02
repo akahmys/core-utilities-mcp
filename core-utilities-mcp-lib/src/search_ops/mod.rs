@@ -86,7 +86,12 @@ fn find_matches(files: &[PathBuf], matcher: &dyn Fn(&str) -> bool) -> Vec<Value>
                     results.push(json!({
                         "file": file_path.to_string_lossy().into_owned(),
                         "line": idx + 1,
-                        "content": line.trim()
+                        // Trailing-only: `edit_file`'s target_content
+                        // verification preserves each line's leading
+                        // whitespace, so trimming it here would make an
+                        // indented match's `content` fail that comparison
+                        // if pasted straight into `edit_file`.
+                        "content": line.trim_end()
                     }));
                     if results.len() >= MAX_MATCHES {
                         break 'outer;

@@ -19,6 +19,25 @@ fn test_search_text() {
 }
 
 #[test]
+fn test_search_text_preserves_leading_whitespace() {
+    let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("indented.rs");
+    let mut file = File::create(&file_path).unwrap();
+    writeln!(file, "fn main() {{").unwrap();
+    writeln!(file, "    let magic = 1;").unwrap();
+    writeln!(file, "}}").unwrap();
+
+    std::env::set_var("AI_COMMAND_MAX_CHARACTERS", "2000");
+    let res = search_text_with_limit(dir.path().to_str().unwrap(), "magic", Some(false)).unwrap();
+    let parsed: Value = serde_json::from_str(&res.content).unwrap();
+    let content = parsed[0]["content"].as_str().unwrap();
+    // Leading whitespace must survive so this can be pasted straight into
+    // edit_file's target_content, which only tolerates trailing whitespace.
+    assert_eq!(content, "    let magic = 1;");
+}
+
+#[test]
 fn test_search_file_by_name() {
     let _lock = crate::guardrails::ENV_MUTEX.blocking_lock();
     let dir = tempdir().unwrap();

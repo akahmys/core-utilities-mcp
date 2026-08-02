@@ -12,12 +12,12 @@ use serde_json::{json, Value};
 pub fn tool_definitions() -> Value {
     json!([
         {
-            "name": "list_directory_contents",
+            "name": "list_dir",
             "description": "Lists contents of a directory divided into files, directories, and links.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string", "description": "Target directory path." }
+                    "path": { "type": "string", "description": "Target directory path. Defaults to the current directory." }
                 }
             }
         },
@@ -27,7 +27,7 @@ pub fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string" }
+                    "path": { "type": "string", "description": "Target file or directory path." }
                 },
                 "required": ["path"]
             }
@@ -38,8 +38,8 @@ pub fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "source": { "type": "string" },
-                    "destination": { "type": "string" }
+                    "source": { "type": "string", "description": "Path to the file or directory to copy." },
+                    "destination": { "type": "string", "description": "Destination path. Missing parent directories are created." }
                 },
                 "required": ["source", "destination"]
             }
@@ -50,8 +50,8 @@ pub fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "source": { "type": "string" },
-                    "destination": { "type": "string" }
+                    "source": { "type": "string", "description": "Path to the file or directory to move." },
+                    "destination": { "type": "string", "description": "Destination path. Missing parent directories are created." }
                 },
                 "required": ["source", "destination"]
             }
@@ -62,18 +62,18 @@ pub fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string" }
+                    "path": { "type": "string", "description": "Path to the file or directory to delete." }
                 },
                 "required": ["path"]
             }
         },
         {
-            "name": "create_directory",
+            "name": "create_dir",
             "description": "Creates a directory including intermediate parents (mkdir -p).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string" }
+                    "path": { "type": "string", "description": "Directory path to create." }
                 },
                 "required": ["path"]
             }
@@ -84,8 +84,8 @@ pub fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string" },
-                    "content": { "type": "string" },
+                    "path": { "type": "string", "description": "Target file path." },
+                    "content": { "type": "string", "description": "File content to write." },
                     "overwrite": { "type": "boolean", "description": "Set true to replace an existing file. Defaults to false." }
                 },
                 "required": ["path", "content"]
@@ -129,57 +129,57 @@ pub fn tool_definitions() -> Value {
             }
         },
         {
-            "name": "search_text_with_limit",
-            "description": "Performs high-efficiency regex or substring search on text files under a directory.",
+            "name": "search_text",
+            "description": "Performs high-efficiency regex or substring search on text files under a directory. Each match's content preserves leading whitespace, so it can be pasted directly into edit_file's target_content.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "search_root_or_file": { "type": "string" },
-                    "query_string": { "type": "string" },
-                    "is_regex": { "type": "boolean" }
+                    "search_root_or_file": { "type": "string", "description": "Directory to search recursively, or a single file to search directly." },
+                    "query_string": { "type": "string", "description": "Plain substring, or a regex pattern when is_regex is true." },
+                    "is_regex": { "type": "boolean", "description": "Treat query_string as a regex. Defaults to false (plain substring match)." }
                 },
                 "required": ["search_root_or_file", "query_string"]
             }
         },
         {
-            "name": "search_file_by_name_or_type",
+            "name": "find_files",
             "description": "Finds files or directories by name patterns or types under a root directory.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "search_root": { "type": "string" },
-                    "name_pattern": { "type": "string" },
-                    "file_type": { "type": "string", "enum": ["file", "directory", "dir", "symlink"] }
+                    "search_root": { "type": "string", "description": "Directory to search recursively. Defaults to the current directory." },
+                    "name_pattern": { "type": "string", "description": "Regex to match against each entry's file name." },
+                    "file_type": { "type": "string", "enum": ["file", "directory", "dir", "symlink"], "description": "Restrict results to this entry type. Omit to match any type." }
                 }
             }
         },
         {
             "name": "filter_and_sort_matrix_columns",
-            "description": "Filters, sorts, and optionally deduplicates columns from CSV/TSV data.",
+            "description": "Filters, sorts, and optionally deduplicates columns from CSV/TSV data. Format (comma vs tab) is auto-detected from the .csv/.tsv extension.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string" },
-                    "columns": { "type": "array", "items": { "type": "string" } },
-                    "deduplicate": { "type": "boolean" }
+                    "path": { "type": "string", "description": "Path to the CSV or TSV file." },
+                    "columns": { "type": "array", "items": { "type": "string" }, "description": "Header names to keep, in the order they should appear." },
+                    "deduplicate": { "type": "boolean", "description": "Remove duplicate rows after filtering. Defaults to false." }
                 },
                 "required": ["path", "columns"]
             }
         },
         {
-            "name": "query_json_by_path",
-            "description": "Queries a JSON file using a path query syntax (e.g. data.users[0].id).",
+            "name": "query_data_by_path",
+            "description": "Queries a JSON, TOML, or YAML file using a path query syntax (e.g. data.users[0].id). Format is auto-detected from the file extension (.toml, .yml/.yaml, else JSON).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string" },
-                    "json_path": { "type": "string" }
+                    "path": { "type": "string", "description": "Path to the JSON, TOML, or YAML file." },
+                    "data_path": { "type": "string", "description": "Dot-separated path to the value, with optional bracket indices (e.g. data.users[0].id)." }
                 },
-                "required": ["path", "json_path"]
+                "required": ["path", "data_path"]
             }
         },
         {
-            "name": "get_system_context",
+            "name": "get_system_info",
             "description": "Aggregates system metadata, disk free space, user IDs, and environment parameters.",
             "inputSchema": {
                 "type": "object",
@@ -192,7 +192,7 @@ pub fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "command": { "type": "string" },
+                    "command": { "type": "string", "description": "Shell command to run (via `sh -c` on Unix, `cmd /C` on Windows)." },
                     "working_directory": { "type": "string", "description": "Directory to run the command in. Defaults to AI_WORKSPACE_ROOT if set, otherwise the server's own working directory." },
                     "timeout_seconds": { "type": "integer", "description": "Wall-clock timeout in seconds (default 30, capped at 300)." }
                 },

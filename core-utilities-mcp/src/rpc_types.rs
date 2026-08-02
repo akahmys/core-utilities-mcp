@@ -100,9 +100,9 @@ pub struct FilterSortArgs {
 }
 
 #[derive(Debug, Deserialize, Default)]
-pub struct QueryJsonArgs {
+pub struct QueryDataArgs {
     pub path: String,
-    pub json_path: String,
+    pub data_path: String,
 }
 
 #[derive(Debug, Deserialize, Default)]

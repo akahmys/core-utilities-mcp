@@ -56,7 +56,7 @@ Decoupled logic without process boundaries. Organized into:
 - `file_ops`: High-performance filesystem operations utilizing native Rust APIs.
 - `search_ops`: High-efficiency grep and find implementations.
 - `text_ops`: Utilities for line-windowed, line-numbered reading, CSV/TSV filtering, and JSON path queries.
-- `sys_ops`: System introspection (`get_system_context`) and unsandboxed shell execution (`execute_command`); see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command) below.
+- `sys_ops`: System introspection (`get_system_info`) and unsandboxed shell execution (`execute_command`); see [The Shell Escape Hatch](#the-shell-escape-hatch-execute_command) below.
 
 ### 2. `core-utilities-mcp` (External Protocol Wrapper)
 A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC requests, parses input into strongly-typed Rust structures, executes them via `core-utilities-mcp-lib`, and outputs structured JSON responses. MCP protocol result types (`InitializeResult`, `ListToolsResult`, `CallToolResult`, `Tool`, ...) are built via the [`rust-mcp-schema`](https://crates.io/crates/rust-mcp-schema) crate rather than untyped JSON, and `initialize`'s `protocolVersion` tracks that crate's `ProtocolVersion::latest()` rather than a hardcoded string. The JSON-RPC 2.0 transport envelope (request/response/error, id correlation, the stdin/stdout loop) predates and is independent of `rust-mcp-schema`, which doesn't cover that layer.
@@ -68,7 +68,7 @@ A thin binary layer acting as an MCP server. It listens on `stdin` for JSON-RPC 
 ### Water-Edge Path Defense
 Destructive operations (`validate_path_safety`) reject root `/`, home `~`, empty values `""`, or wildcard patterns (`/*`, `/.*`) by exact match, and reject the current working directory under *any* spelling that lexically collapses to it (`.`, `./`, `a/..`, ...) — a plain string comparison against `.` alone would miss those equivalent spellings, so `.`/`..` components are resolved lexically first (no disk access, so this also works for not-yet-existing mutation targets). Alongside these, a fixed deny-list of critical system directories (`/etc`, `/usr`, `/bin`, `C:\Windows`, etc.) is rejected — subpaths beneath them remain permitted.
 
-Read-only operations (`validate_read_path_safety`) share every check above *except* the current-directory rejection: `list_directory_contents`, `get_file_metadata`, and the read paths in `search_ops`/`text_ops` all permit `.` — several of them default to it — since reading or listing "here" cannot destroy anything the way a mutation could.
+Read-only operations (`validate_read_path_safety`) share every check above *except* the current-directory rejection: `list_dir`, `get_file_metadata`, and the read paths in `search_ops`/`text_ops` all permit `.` — several of them default to it — since reading or listing "here" cannot destroy anything the way a mutation could.
 
 **Optional workspace confinement**: setting `AI_WORKSPACE_ROOT` restricts every path-validated call to that directory (and its subdirectories); anything outside it, including via `../` traversal, is rejected. Off by default. As with everything else here, this is a mistake-prevention guard, not an adversarial boundary — see [Threat Model & Scope](#-threat-model--scope).
 

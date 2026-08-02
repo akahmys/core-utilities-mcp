@@ -4,7 +4,7 @@
 
 use crate::rpc_types::{
     CopyMoveArgs, EditFileArgs, ExecCmdArgs, FilterSortArgs, JsonRpcError, JsonRpcResponse,
-    ListDirArgs, PathArgs, QueryJsonArgs, ReadArgs, SearchFileArgs, SearchTextArgs, WriteFileArgs,
+    ListDirArgs, PathArgs, QueryDataArgs, ReadArgs, SearchFileArgs, SearchTextArgs, WriteFileArgs,
 };
 use core_utilities_mcp_lib::errors::{CoreError, CoreResult};
 use core_utilities_mcp_lib::file_ops::{
@@ -14,7 +14,7 @@ use core_utilities_mcp_lib::file_ops::{
 use core_utilities_mcp_lib::search_ops::{search_file_by_name_or_type, search_text_with_limit};
 use core_utilities_mcp_lib::sys_ops::{execute_command, get_system_context};
 use core_utilities_mcp_lib::text_ops::{
-    filter_and_sort_matrix_columns, query_json_by_path, read_file,
+    filter_and_sort_matrix_columns, query_data_by_path, read_file,
 };
 use rust_mcp_schema::{CallToolResult, ContentBlock, TextContent};
 use serde_json::Value;
@@ -40,7 +40,7 @@ use tracing::warn;
 pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreResult<String> {
     let args = arguments.unwrap_or(Value::Null);
     match name {
-        "list_directory_contents" => {
+        "list_dir" => {
             let args: ListDirArgs = serde_json::from_value(args).unwrap_or_default();
             list_directory_contents(args.path).map(|v| v.to_string())
         }
@@ -63,7 +63,7 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             delete_file_or_directory(&args.path)
                 .map(|()| "Successfully deleted targets.".to_string())
         }
-        "create_directory" => {
+        "create_dir" => {
             let args: PathArgs = serde_json::from_value(args).unwrap_or_default();
             create_directory(&args.path).map(|()| "Successfully created directory.".to_string())
         }
@@ -86,12 +86,12 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             read_file(&args.path, args.start_line)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
-        "search_text_with_limit" => {
+        "search_text" => {
             let args: SearchTextArgs = serde_json::from_value(args).unwrap_or_default();
             search_text_with_limit(&args.search_root_or_file, &args.query_string, args.is_regex)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
-        "search_file_by_name_or_type" => {
+        "find_files" => {
             let args: SearchFileArgs = serde_json::from_value(args).unwrap_or_default();
             search_file_by_name_or_type(
                 args.search_root.as_deref(),
@@ -105,11 +105,11 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             filter_and_sort_matrix_columns(&args.path, &args.columns, args.deduplicate)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
-        "query_json_by_path" => {
-            let args: QueryJsonArgs = serde_json::from_value(args).unwrap_or_default();
-            query_json_by_path(&args.path, &args.json_path).map(|v| v.to_string())
+        "query_data_by_path" => {
+            let args: QueryDataArgs = serde_json::from_value(args).unwrap_or_default();
+            query_data_by_path(&args.path, &args.data_path).map(|v| v.to_string())
         }
-        "get_system_context" => get_system_context().map(|v| v.to_string()),
+        "get_system_info" => get_system_context().map(|v| v.to_string()),
         "execute_command" => {
             let args: ExecCmdArgs = serde_json::from_value(args).unwrap_or_default();
             execute_command(

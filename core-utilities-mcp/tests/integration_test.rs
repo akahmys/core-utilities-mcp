@@ -90,7 +90,7 @@ fn tools_call_success_returns_structured_content() {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "tools/call",
-        "params": {"name": "get_system_context", "arguments": {}}
+        "params": {"name": "get_system_info", "arguments": {}}
     }));
 
     let text = resp["result"]["content"][0]["text"]
@@ -196,6 +196,53 @@ fn tools_call_edit_file_applies_chunk_and_reports_line_delta() {
     );
 
     std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn tools_call_query_data_by_path_reads_toml_and_yaml() {
+    let mut server = TestServer::spawn();
+
+    let toml_path = std::env::temp_dir().join(format!(
+        "core-utilities-mcp-query-test-{}.toml",
+        std::process::id()
+    ));
+    std::fs::write(&toml_path, "[package]\nname = \"demo\"\n").expect("setup failed");
+
+    let resp = server.call(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "query_data_by_path",
+            "arguments": {"path": toml_path.to_str().unwrap(), "data_path": "package.name"}
+        }
+    }));
+    let text = resp["result"]["content"][0]["text"]
+        .as_str()
+        .expect("content[0].text field");
+    assert_eq!(text, "\"demo\"");
+    std::fs::remove_file(&toml_path).ok();
+
+    let yaml_path = std::env::temp_dir().join(format!(
+        "core-utilities-mcp-query-test-{}.yaml",
+        std::process::id()
+    ));
+    std::fs::write(&yaml_path, "service:\n  image: nginx\n").expect("setup failed");
+
+    let resp = server.call(&json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "query_data_by_path",
+            "arguments": {"path": yaml_path.to_str().unwrap(), "data_path": "service.image"}
+        }
+    }));
+    let text = resp["result"]["content"][0]["text"]
+        .as_str()
+        .expect("content[0].text field");
+    assert_eq!(text, "\"nginx\"");
+    std::fs::remove_file(&yaml_path).ok();
 }
 
 #[test]
