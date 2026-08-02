@@ -92,28 +92,38 @@ pub fn tool_definitions() -> Value {
             }
         },
         {
-            "name": "edit_file_content",
-            "description": "Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content before replacement.",
+            "name": "edit_file",
+            "description": "Applies one or more non-contiguous line-range edits to a file as a single atomic transaction. Each edit's target_content (the exact current content of start_line..end_line, without any line-number prefix) is verified before anything is written; if any edit fails verification, none are applied. A single edit is just a one-element edits array. The response's line_delta reports how many lines the file grew or shrank by, so a follow-up edit can adjust line numbers without re-reading the file.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "path": { "type": "string", "description": "The file path to edit." },
-                    "start_line": { "type": "integer", "description": "1-indexed start line of the range to edit." },
-                    "end_line": { "type": "integer", "description": "1-indexed end line of the range to edit (inclusive)." },
-                    "target_content": { "type": "string", "description": "The exact content expected within the line range to prevent stale edits." },
-                    "replacement_content": { "type": "string", "description": "The replacement content." }
+                    "edits": {
+                        "type": "array",
+                        "description": "One or more edit chunks. A single edit is just a one-element array.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "start_line": { "type": "integer", "description": "1-indexed start line of the range to edit." },
+                                "end_line": { "type": "integer", "description": "1-indexed end line of the range to edit (inclusive)." },
+                                "target_content": { "type": "string", "description": "The exact content expected within the line range to prevent stale edits." },
+                                "replacement_content": { "type": "string", "description": "The replacement content." }
+                            },
+                            "required": ["start_line", "end_line", "target_content", "replacement_content"]
+                        }
+                    }
                 },
-                "required": ["path", "start_line", "end_line", "target_content", "replacement_content"]
+                "required": ["path", "edits"]
             }
         },
         {
-            "name": "read_file_with_limit",
-            "description": "Read file contents starting from an optional offset, respecting character boundaries and limits.",
+            "name": "read_file",
+            "description": "Reads a file starting at a 1-indexed line number, annotating each returned line as '{line_number}\\t{content}'. Use the line numbers directly as start_line/end_line for edit_file, and the raw content after the tab (without the number) as target_content. If the response's status is 'truncated', pass its next_start_line back in to continue reading.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string" },
-                    "start_offset": { "type": "integer" }
+                    "path": { "type": "string", "description": "The file path to read." },
+                    "start_line": { "type": "integer", "description": "1-indexed line to start reading from. Defaults to 1." }
                 },
                 "required": ["path"]
             }

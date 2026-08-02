@@ -130,6 +130,75 @@ fn tools_call_write_file_creates_file() {
 }
 
 #[test]
+fn tools_call_read_file_annotates_line_numbers() {
+    let mut server = TestServer::spawn();
+    let path = std::env::temp_dir().join(format!(
+        "core-utilities-mcp-read-test-{}.txt",
+        std::process::id()
+    ));
+    std::fs::write(&path, "line 1\nline 2").expect("setup failed");
+    let path_str = path.to_str().unwrap();
+
+    let resp = server.call(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "read_file", "arguments": {"path": path_str}}
+    }));
+
+    let text = resp["result"]["content"][0]["text"]
+        .as_str()
+        .expect("content[0].text field");
+    let ctx: Value = serde_json::from_str(text).expect("tool output was not JSON");
+    assert_eq!(ctx["status"], "success");
+    assert_eq!(ctx["content"], "1\tline 1\n2\tline 2\n");
+
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
+fn tools_call_edit_file_applies_chunk_and_reports_line_delta() {
+    let mut server = TestServer::spawn();
+    let path = std::env::temp_dir().join(format!(
+        "core-utilities-mcp-edit-test-{}.txt",
+        std::process::id()
+    ));
+    std::fs::write(&path, "line 1\nline 2\nline 3").expect("setup failed");
+    let path_str = path.to_str().unwrap();
+
+    let resp = server.call(&json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "edit_file",
+            "arguments": {
+                "path": path_str,
+                "edits": [{
+                    "start_line": 2,
+                    "end_line": 2,
+                    "target_content": "line 2",
+                    "replacement_content": "a\nb"
+                }]
+            }
+        }
+    }));
+
+    let text = resp["result"]["content"][0]["text"]
+        .as_str()
+        .expect("content[0].text field");
+    let result: Value = serde_json::from_str(text).expect("tool output was not JSON");
+    assert_eq!(result["status"], "success");
+    assert_eq!(result["line_delta"], 1);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("edited file should be readable"),
+        "line 1\na\nb\nline 3"
+    );
+
+    std::fs::remove_file(&path).ok();
+}
+
+#[test]
 fn tools_call_failure_reports_error_type() {
     let mut server = TestServer::spawn();
 

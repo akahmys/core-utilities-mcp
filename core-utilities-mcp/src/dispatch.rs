@@ -8,13 +8,13 @@ use crate::rpc_types::{
 };
 use core_utilities_mcp_lib::errors::{CoreError, CoreResult};
 use core_utilities_mcp_lib::file_ops::{
-    copy_file_or_directory, create_directory, delete_file_or_directory, edit_file_content,
+    copy_file_or_directory, create_directory, delete_file_or_directory, edit_file,
     get_file_metadata, list_directory_contents, move_file_or_directory, write_file,
 };
 use core_utilities_mcp_lib::search_ops::{search_file_by_name_or_type, search_text_with_limit};
 use core_utilities_mcp_lib::sys_ops::{execute_command, get_system_context};
 use core_utilities_mcp_lib::text_ops::{
-    filter_and_sort_matrix_columns, query_json_by_path, read_file_with_limit,
+    filter_and_sort_matrix_columns, query_json_by_path, read_file,
 };
 use rust_mcp_schema::{CallToolResult, ContentBlock, TextContent};
 use serde_json::Value;
@@ -24,9 +24,10 @@ use tracing::warn;
 /// `core-utilities-mcp-lib` function, stringifying its JSON result. Unknown
 /// tool names yield [`CoreError::General`]; malformed `arguments` fall back
 /// to each tool's empty/default value rather than erroring, except
-/// `edit_file_content` (whose required numeric fields have no sane default)
-/// and `write_file` (an empty-string default for `content` would silently
-/// write an empty file rather than surface the malformed request).
+/// `edit_file` (an empty `edits` default would obscure a malformed request
+/// behind a generic "no edit chunks provided" error) and `write_file` (an
+/// empty-string default for `content` would silently write an empty file
+/// rather than surface the malformed request).
 ///
 /// Deliberately kept as one `match` over all tool names rather than split
 /// per `CODING.md`'s 40-line function guidance: each arm is the same
@@ -74,22 +75,15 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
                 "Invalid arguments for write_file: {e}"
             ))),
         },
-        "edit_file_content" => match serde_json::from_value::<EditFileArgs>(args) {
-            Ok(args) => edit_file_content(
-                &args.path,
-                args.start_line,
-                args.end_line,
-                &args.target_content,
-                &args.replacement_content,
-            )
-            .map(|v| v.to_string()),
+        "edit_file" => match serde_json::from_value::<EditFileArgs>(args) {
+            Ok(args) => edit_file(&args.path, args.edits).map(|v| v.to_string()),
             Err(e) => Err(CoreError::Parsing(format!(
-                "Invalid arguments for edit_file_content: {e}"
+                "Invalid arguments for edit_file: {e}"
             ))),
         },
-        "read_file_with_limit" => {
+        "read_file" => {
             let args: ReadArgs = serde_json::from_value(args).unwrap_or_default();
-            read_file_with_limit(&args.path, args.start_offset)
+            read_file(&args.path, args.start_line)
                 .map(|res| serde_json::to_string(&res).unwrap_or_else(|_| "{}".to_string()))
         }
         "search_text_with_limit" => {

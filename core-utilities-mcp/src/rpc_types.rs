@@ -1,6 +1,7 @@
 //! JSON-RPC 2.0 envelope types and the per-tool argument structs used to
 //! deserialize `tools/call` arguments.
 
+use core_utilities_mcp_lib::file_ops::EditChunk;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -68,16 +69,13 @@ pub struct WriteFileArgs {
 #[derive(Debug, Deserialize, Default)]
 pub struct EditFileArgs {
     pub path: String,
-    pub start_line: usize,
-    pub end_line: usize,
-    pub target_content: String,
-    pub replacement_content: String,
+    pub edits: Vec<EditChunk>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ReadArgs {
     pub path: String,
-    pub start_offset: Option<usize>,
+    pub start_line: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, Default)]

@@ -8,7 +8,8 @@
 
 mod mutate;
 pub use mutate::{
-    copy_file_or_directory, create_directory, edit_file_content, move_file_or_directory, write_file,
+    copy_file_or_directory, create_directory, edit_file, move_file_or_directory, write_file,
+    EditChunk,
 };
 
 use crate::errors::{CoreError, CoreResult};

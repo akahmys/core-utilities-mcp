@@ -16,10 +16,10 @@ It translates heavy, unpredictable, and raw shell commands into deterministic, J
 5. `delete_file_or_directory` (rm): Rigidly rejects dangerous paths.
 6. `create_directory` (mkdir): Automatically creates parent directories (`mkdir -p`).
 7. `write_file` (touch, `>`): Writes content to a new file, creating missing parent directories. Refuses to overwrite an existing file unless `overwrite: true` is passed.
-8. `edit_file_content` (edit): Safe, hybrid search-and-replace style editor targeting a specific line range and verifying its content.
+8. `edit_file` (edit): Applies one or more non-contiguous line-range edits atomically, verifying each chunk's `target_content` before writing any of them. A single edit is just a one-element `edits` array. Reports `line_delta` (how many lines the file grew or shrank by) so a follow-up edit can adjust line numbers without re-reading.
 
 ### Search & Text Control
-9. `read_file_with_limit` (cat, head, tail): Paginates file reads using `start_offset` and smart truncation.
+9. `read_file` (cat, head, tail): Reads from a 1-indexed `start_line`, annotating each returned line as `"{line_number}\t{content}"` so output feeds directly into `edit_file`. Truncated reads report `next_start_line` to resume from.
 10. `search_text_with_limit` (grep): JSON-structured regex/plain text finder with context support.
 11. `search_file_by_name_or_type` (find): Locates files based on name/type constraints.
 
@@ -63,9 +63,9 @@ RUST_LOG=debug core-utilities-mcp
 ```
 
 ### 3. Path Safety Validation (`rm -rf` Water-Edge Defense)
-All destructive commands (`delete_file_or_directory`, `move_file_or_directory`, `copy_file_or_directory`, `create_directory`, `write_file`, `edit_file_content`) apply path safety validation before execution. Operations on dangerous targets — the current directory under any spelling that lexically collapses to it (`.`, `./`, `a/..`, ...), `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) — are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
+All destructive commands (`delete_file_or_directory`, `move_file_or_directory`, `copy_file_or_directory`, `create_directory`, `write_file`, `edit_file`) apply path safety validation before execution. Operations on dangerous targets — the current directory under any spelling that lexically collapses to it (`.`, `./`, `a/..`, ...), `/`, `*`, `~`, `""` (empty string), paths containing a NUL byte, or paths ending with wildcards (`/*`, `/.*`) — are immediately rejected. Exact (case-insensitive) matches against a fixed deny-list of critical system directories (e.g. `/etc`, `/usr`, `/bin`, `C:\Windows`) are also rejected, while subpaths beneath them (e.g. `/etc/hosts`) remain permitted.
 
-Read-only commands (`list_directory_contents`, `get_file_metadata`, `search_text_with_limit`, `search_file_by_name_or_type`, `read_file_with_limit`, `filter_and_sort_matrix_columns`, `query_json_by_path`) apply the same validation *except* they permit the current directory — reading or listing "here" is the normal, safe default for these tools (several default to `.` when no path is given), and unlike a mutation it cannot destroy anything. Every rejection states what to pass instead, since the caller is typically an LLM deciding how to retry.
+Read-only commands (`list_directory_contents`, `get_file_metadata`, `search_text_with_limit`, `search_file_by_name_or_type`, `read_file`, `filter_and_sort_matrix_columns`, `query_json_by_path`) apply the same validation *except* they permit the current directory — reading or listing "here" is the normal, safe default for these tools (several default to `.` when no path is given), and unlike a mutation it cannot destroy anything. Every rejection states what to pass instead, since the caller is typically an LLM deciding how to retry.
 
 This is a mistake-prevention guard for an AI agent going off-script, not an adversarial security boundary — it does not resolve symlinks, and provides no protection for calls that bypass it entirely (e.g. `execute_command`, which is not path-validated).
 
