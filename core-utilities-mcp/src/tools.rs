@@ -93,7 +93,7 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "edit_file",
-            "description": "Applies one or more non-contiguous line-range edits to a file as a single atomic transaction. Each edit's target_content (the exact current content of start_line..end_line, without any line-number prefix) is verified before anything is written; if any edit fails verification, none are applied. A single edit is just a one-element edits array. The response's line_delta reports how many lines the file grew or shrank by, so a follow-up edit can adjust line numbers without re-reading the file.",
+            "description": "Applies one or more edits to a file as a single atomic transaction. Each edit replaces old_string with new_string; old_string is matched against the file's current content and must appear EXACTLY ONCE, so include enough surrounding context to make it unique. No line numbers are involved, so edits can't be invalidated by earlier edits shifting lines. Every edit is located and checked before anything is written — if any old_string is missing or ambiguous, no edit is applied and the file is left untouched. A single edit is just a one-element edits array. To delete text, pass an empty new_string.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -104,12 +104,10 @@ pub fn tool_definitions() -> Value {
                         "items": {
                             "type": "object",
                             "properties": {
-                                "start_line": { "type": "integer", "description": "1-indexed start line of the range to edit." },
-                                "end_line": { "type": "integer", "description": "1-indexed end line of the range to edit (inclusive)." },
-                                "target_content": { "type": "string", "description": "The exact content expected within the line range to prevent stale edits." },
-                                "replacement_content": { "type": "string", "description": "The replacement content." }
+                                "old_string": { "type": "string", "description": "Exact existing text to replace, including indentation. Must match exactly one place in the file — add surrounding lines if it would otherwise be ambiguous." },
+                                "new_string": { "type": "string", "description": "Text to replace it with. Empty string deletes the matched text." }
                             },
-                            "required": ["start_line", "end_line", "target_content", "replacement_content"]
+                            "required": ["old_string", "new_string"]
                         }
                     }
                 },
@@ -118,7 +116,7 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "read_file",
-            "description": "Reads a file starting at a 1-indexed line number, annotating each returned line as '{line_number}\\t{content}'. Use the line numbers directly as start_line/end_line for edit_file, and the raw content after the tab (without the number) as target_content. If the response's status is 'truncated', pass its next_start_line back in to continue reading.",
+            "description": "Reads a file starting at a 1-indexed line number, annotating each returned line as '{line_number}\\t{content}'. The line numbers are for your orientation only — edit_file matches on content, so pass the raw text after the tab (without the number) as its old_string. If the response's status is 'truncated', pass its next_start_line back in to continue reading.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -130,7 +128,7 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "search_text",
-            "description": "Performs high-efficiency regex or substring search on text files under a directory. Each match's content preserves leading whitespace, so it can be pasted directly into edit_file's target_content.",
+            "description": "Performs high-efficiency regex or substring search on text files under a directory. Each match's content preserves leading whitespace, so it can be pasted directly into edit_file's old_string.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2021"
 authors = ["core-utilities-mcp team"]
 description = "Core library for AI-optimized command toolkit (ACI)"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

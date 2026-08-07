@@ -76,7 +76,7 @@ pub async fn dispatch_tool_call(name: &str, arguments: Option<Value>) -> CoreRes
             ))),
         },
         "edit_file" => match serde_json::from_value::<EditFileArgs>(args) {
-            Ok(args) => edit_file(&args.path, args.edits).map(|v| v.to_string()),
+            Ok(args) => edit_file(&args.path, &args.edits).map(|v| v.to_string()),
             Err(e) => Err(CoreError::Parsing(format!(
                 "Invalid arguments for edit_file: {e}"
             ))),

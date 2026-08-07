@@ -25,9 +25,10 @@ pub struct ReadFileResult {
 }
 
 /// Reads `path` as UTF-8 text starting at 1-indexed line `start_line`
-/// (default `1`), annotating each line with its number so the result can be
-/// used directly as `start_line`/`end_line`/`target_content` input to
-/// [`crate::file_ops::edit_file`]. Applies the standard
+/// (default `1`), annotating each line with its number for the caller's
+/// orientation — the text after the tab can be pasted directly as
+/// [`crate::file_ops::edit_file`]'s `old_string`, which matches on content
+/// rather than position. Applies the standard
 /// [`truncate_output`](crate::guardrails::truncate_output) size limit,
 /// stopping early (within [`READ_WINDOW_MARGIN`] of it) rather than
 /// annotating the file's entire remainder up front.

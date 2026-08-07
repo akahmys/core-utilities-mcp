@@ -175,10 +175,8 @@ fn tools_call_edit_file_applies_chunk_and_reports_line_delta() {
             "arguments": {
                 "path": path_str,
                 "edits": [{
-                    "start_line": 2,
-                    "end_line": 2,
-                    "target_content": "line 2",
-                    "replacement_content": "a\nb"
+                    "old_string": "line 2",
+                    "new_string": "a\nb"
                 }]
             }
         }

@@ -1,0 +1,35 @@
+# Betterleaks configuration for core-utilities-mcp
+
+[allowlist]
+paths = [
+    '''target/''',
+    '''\.git/''',
+    '''\.claude/''',
+    '''\.betterleaks\.toml$''',
+    '''\.gitleaks\.toml$''',
+    '''\.md$''',
+    '''test.*\.rs$''',
+    '''\.agents/''',
+    '''\.githooks/''',
+    '''deny\.toml$''',
+    '''PLANS\.md$''',
+    '''AGENTS\.md$''',
+]
+
+[[rules]]
+id = "absolute-path-users"
+description = "Detected absolute path containing /Users/"
+regex = '''/Users/[a-zA-Z0-9_-]+'''
+keywords = ["/Users/"]
+
+[[rules]]
+id = "absolute-path-home"
+description = "Detected absolute path containing /home/"
+regex = '''/home/[a-zA-Z0-9_-]+'''
+keywords = ["/home/"]
+
+[[rules]]
+id = "personal-name-jun-kato"
+description = "Detected personal name 'Jun Kato' / 'jun_kato' / 'jun.kato'"
+regex = '''(?i)\bjun[\s._-]*kato\b'''
+keywords = ["jun", "kato"]

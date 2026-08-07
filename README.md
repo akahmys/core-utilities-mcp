@@ -16,11 +16,11 @@ It translates heavy, unpredictable, and raw shell commands into deterministic, J
 5. `delete_file_or_directory` (rm): Rigidly rejects dangerous paths.
 6. `create_dir` (mkdir): Automatically creates parent directories (`mkdir -p`).
 7. `write_file` (touch, `>`): Writes content to a new file, creating missing parent directories. Refuses to overwrite an existing file unless `overwrite: true` is passed.
-8. `edit_file` (edit): Applies one or more non-contiguous line-range edits atomically, verifying each chunk's `target_content` before writing any of them. A single edit is just a one-element `edits` array. Reports `line_delta` (how many lines the file grew or shrank by) so a follow-up edit can adjust line numbers without re-reading.
+8. `edit_file` (edit): Applies one or more edits atomically, each replacing an `old_string` with a `new_string`. Matching is content-based rather than line-based, so edits can't be invalidated by earlier edits shifting line numbers; each `old_string` must match exactly one place in the file (add surrounding context to disambiguate). Every chunk is located and checked before anything is written, so a failure leaves the file untouched. A single edit is just a one-element `edits` array.
 
 ### Search & Text Control
 9. `read_file` (cat, head, tail): Reads from a 1-indexed `start_line`, annotating each returned line as `"{line_number}\t{content}"` so output feeds directly into `edit_file`. Truncated reads report `next_start_line` to resume from.
-10. `search_text` (grep): JSON-structured regex/plain text finder; each match's `content` preserves leading whitespace so it can be pasted straight into `edit_file`'s `target_content`.
+10. `search_text` (grep): JSON-structured regex/plain text finder; each match's `content` preserves leading whitespace so it can be pasted straight into `edit_file`'s `old_string`.
 11. `find_files` (find): Locates files based on name/type constraints.
 
 ### Structural Data Formatting
@@ -49,7 +49,7 @@ All commands outputting text respect the `AI_COMMAND_MAX_CHARACTERS` environment
   - Specifying in an MCP configuration file (e.g., `mcp.json`):
     ```json
     "core-utilities-mcp": {
-      "command": "/Users/akahmys/.cargo/bin/core-utilities-mcp",
+      "command": "/Users/username/.cargo/bin/core-utilities-mcp",
       "env": {
         "AI_COMMAND_MAX_CHARACTERS": "4096"
       }
@@ -72,9 +72,9 @@ This is a mistake-prevention guard for an AI agent going off-script, not an adve
 **Optional workspace confinement (`AI_WORKSPACE_ROOT`)**: if set, every path-validated tool call is restricted to that directory (and its subdirectories) — anything outside it, including via `../` traversal, is rejected. Unset (the default), there is no such restriction. It also becomes the default `working_directory` for `execute_command` when the caller doesn't specify one.
 ```json
 "core-utilities-mcp": {
-  "command": "/Users/akahmys/.cargo/bin/core-utilities-mcp",
+  "command": "/Users/username/.cargo/bin/core-utilities-mcp",
   "env": {
-    "AI_WORKSPACE_ROOT": "/Users/akahmys/projects/rad"
+    "AI_WORKSPACE_ROOT": "/path/to/your/project"
   }
 }
 ```
@@ -94,6 +94,10 @@ The repository is structured as follows:
 ```
 core-utilities-mcp/
 ├── Cargo.toml                  # Workspace configuration
+├── deny.toml                   # cargo-deny license audit configuration
+├── .betterleaks.toml           # betterleaks secret audit configuration
+├── .gitleaks.toml              # gitleaks secret audit configuration
+├── .githooks/                  # Tracked git hooks (pre-commit)
 ├── core-utilities-mcp-lib/     # [Core] Independent pure Rust library crate
 │   ├── Cargo.toml
 │   └── src/
@@ -125,10 +129,10 @@ cargo test --workspace
 ```
 
 ### Continuous Integration
-Every push and pull request to `main` runs `scripts/check_secrets.sh --all`, `scripts/check_licenses.py`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings -D clippy::pedantic`, `cargo build`, and `cargo test` via [GitHub Actions](.github/workflows/ci.yml).
+Every push and pull request to `main` runs `betterleaks`, `cargo deny check licenses`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings -D clippy::pedantic`, `cargo build`, and `cargo test` via [GitHub Actions](.github/workflows/ci.yml).
 
 ### Git Hooks
-`scripts/check_secrets.sh` also runs locally as a pre-commit hook (staged changes only), catching secrets and absolute paths before they're ever committed — CI can only catch them after the fact, once they're already in history. The hook lives in `.githooks/` (tracked in git) rather than `.git/hooks/` (which isn't), so it needs a one-time opt-in per clone:
+`betterleaks` also runs locally as a pre-commit hook via `.githooks/pre-commit`, catching secrets and absolute paths before they're ever committed — CI can only catch them after the fact, once they're already in history. The hook lives in `.githooks/` (tracked in git) rather than `.git/hooks/` (which isn't), so it needs a one-time opt-in per clone:
 ```bash
 git config core.hooksPath .githooks
 ```
