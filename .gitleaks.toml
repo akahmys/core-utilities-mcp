@@ -15,6 +15,11 @@ paths = [
     '''PLANS\.md$''',
     '''AGENTS\.md$''',
 ]
+regexes = [
+    '''/Users/me\b''',
+    '''/home/user\b''',
+]
+
 
 [[rules]]
 id = "absolute-path-users"
