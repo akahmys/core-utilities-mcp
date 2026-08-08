@@ -33,6 +33,7 @@
 *   [x] **AWU 8.16: Migrate Secrets Audit from `check_secrets.sh` to `betterleaks`**
 *   [x] **AWU 8.17: Add Personal Name Check to `betterleaks` Rules**
 *   [x] **AWU 8.18: Fix GitHub CI Secret Scan Failure by Allowing Sample Paths (`/Users/me`, `/home/user`) in `.gitleaks.toml` / `.betterleaks.toml`**
+*   [x] **AWU 8.19: Fix `cargo-deny-action` CLI Argument Syntax in `.github/workflows/ci.yml`**
 
 ---
 
@@ -93,10 +94,12 @@
 | **8.16** | Migrate Secrets Audit | `[✅] Completed` | Swapped `check_secrets.sh` for `betterleaks` (`.betterleaks.toml`). |
 | **8.17** | Personal Name Audit Rule | `[✅] Completed` | Added personal name rule to `.betterleaks.toml` & `.gitleaks.toml`. |
 | **8.18** | Fix CI Secret Scan Failure | `[✅] Completed` | Added dummy sample path regexes (`/Users/me`, `/home/user`) to `[allowlist]` in `.gitleaks.toml` and `.betterleaks.toml`. |
+| **8.19** | Fix CI cargo-deny Action Syntax | `[✅] Completed` | Changed `arguments: --checks licenses` to `command-arguments: licenses` in `.github/workflows/ci.yml`. |
 
 ---
 
 ## 🚀 Next Steps
 
-All planned roadmap phases (Phases 1–8, AWU 1.1–8.18) are 100% completed, fully audited, and passing. The codebase is clean, warning-free (`clippy::pedantic`), covered by 84 tests, and governed by `cargo-deny` and `betterleaks`.
+All planned roadmap phases (Phases 1–8, AWU 1.1–8.19) are 100% completed, fully audited, and passing. The codebase is clean, warning-free (`clippy::pedantic`), covered by 84 tests, and governed by `cargo-deny` and `betterleaks`.
+
 

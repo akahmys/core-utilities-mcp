@@ -40,7 +40,8 @@ jobs:
       - name: Check dependency licenses
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          arguments: --checks licenses
+          command-arguments: licenses
+
 
       - name: Check formatting
         run: cargo fmt --all -- --check
